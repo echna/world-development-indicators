@@ -6,6 +6,11 @@ import seaborn as sns
 import sqlite3
 import matplotlib.pyplot as plt
 
+import os
+previous_dir = os.getcwd()
+
+os.chdir(previous_dir +'\world-development-indicators-data')
+
 store_Country = pd.HDFStore('Country')
 store_indicators = pd.HDFStore('Indicators')
 
@@ -57,3 +62,4 @@ plt.plot(time_and_values('Germany',Indicator_Code), 'r')
 plt.plot(time_and_values('France',Indicator_Code), 'b')
 plt.show()
 
+os.chdir(previous_dir)
