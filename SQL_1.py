@@ -57,24 +57,51 @@ def Indicator_finder(str):
 	
 	
 # ******  Plotting  ******
+
+
+
+countries = ('Germany', 'France', 'Poland', 'Austria', 'Taiwan', 'China')
+Indicator_Code_x ='AG.YLD.CREL.KG'
+Indicator_Code_y ='AG.PRD.FOOD.XD'
+Indicator_Code_z ='AG.PRD.CROP.XD'
+Year_1 = 2010
+
+plt.title(
+	"x =" +str(Indicator_Name_f(Indicator_Code_x))+
+	",y = " +str(Indicator_Name_f(Indicator_Code_y))+
+	",area=" +str(Indicator_Name_f(Indicator_Code_z))
+	)
+
+area_normalisation  = sum(pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries),
+	conn, params={'x': Indicator_Code_z, 'n': Year_1}).values)/(len(countries))
 	
+x = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries),
+	conn, params={'x': Indicator_Code_x, 'n': Year_1}).values
+y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries),
+	conn, params={'x': Indicator_Code_y, 'n': Year_1}).values
+area = 100*pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries),
+	conn, params={'x': Indicator_Code_z, 'n': Year_1}).values/area_normalisation
+
+
+plt.scatter(x, y, s=area, alpha=0.5)
+plt.show()
+
+
+
 	
 Indicator_Code ='AG.YLD.CREL.KG'
 	
-plt.title(str(Indicator_Name_f(Indicator_Code)))
 
+# plt.figure()
+# for Country_Name in [str(Country_Name[0].encode('utf-8'))for Country_Name in pd.read_sql_query("SELECT ShortName  FROM Country LIMIT 10 ",conn).values]:
+	# plt.plot(time_and_values(Country_Name,Indicator_Code), 'r')
 
-plt.figure()
-for Country_Name in [str(Country_Name[0].encode('utf-8'))for Country_Name in pd.read_sql_query("SELECT ShortName  FROM Country ",conn).values]:
-	plt.plot(time_and_values(Country_Name,Indicator_Code), 'r')
+# plt.show()
 
-plt.show()
-
-
-plt.plot(time_and_values('Germany',Indicator_Code), 'r')
+# plt.title(str(Indicator_Name_f(Indicator_Code)))
+# plt.plot(time_and_values('Germany',Indicator_Code), 'r')
 # plt.plot(time_and_values('France',Indicator_Code), 'b')
 # plt.plot(time_and_values('United Kingdom',Indicator_Code), 'g')
-
-plt.show()
+# plt.show()
 
 os.chdir(previous_dir)
