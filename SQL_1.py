@@ -11,16 +11,16 @@ previous_dir = os.getcwd()
 
 os.chdir(previous_dir +'\world-development-indicators-data')
 
-store_Country = pd.HDFStore('Country')
-store_indicators = pd.HDFStore('Indicators')
+# store_Country = pd.HDFStore('Country')
+# store_indicators = pd.HDFStore('Indicators')
 
-# Indicators = pd.read_csv('Indicators.csv',parse_dates=[0], infer_datetime_format=True)
-# store_indicators['Indicators'] = Indicators
-# Country = pd.read_csv('Country.csv',parse_dates=[0], infer_datetime_format=True)
-# store_Country['Country'] = Country
+# # Indicators = pd.read_csv('Indicators.csv',parse_dates=[0], infer_datetime_format=True)
+# # store_indicators['Indicators'] = Indicators
+# # Country = pd.read_csv('Country.csv',parse_dates=[0], infer_datetime_format=True)
+# # store_Country['Country'] = Country
 
-Country = store_Country['Country']
-Indicators = store_indicators['Indicators']
+# Country = store_Country['Country']
+# Indicators = store_indicators['Indicators']
 
 conn = sqlite3.connect('database.sqlite')
 
@@ -36,7 +36,7 @@ table_names = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='tabl
 
 	
 # ******  FUNCTIONS  ******
-	
+
 	
 def Indicator_Name_f(Indicator_Code):
 	'''generates Indicator_Name from Code'''
@@ -51,6 +51,10 @@ def time_and_values(Country_Name,Indicator_Code):
 	data.set_index('Year', inplace = True)
 	return data
 
+def Indicator_finder(str):
+	'''given a string lists the first 10 indictors that contain this string'''
+	return pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorName LIKE @x GROUP BY IndicatorName LIMIT 10",conn,  params={'x': '%'+str +'%'})
+	
 	
 # ******  Plotting  ******
 	
@@ -58,8 +62,19 @@ def time_and_values(Country_Name,Indicator_Code):
 Indicator_Code ='AG.YLD.CREL.KG'
 	
 plt.title(str(Indicator_Name_f(Indicator_Code)))
+
+
+plt.figure()
+for Country_Name in [str(Country_Name[0].encode('utf-8'))for Country_Name in pd.read_sql_query("SELECT ShortName  FROM Country ",conn).values]:
+	plt.plot(time_and_values(Country_Name,Indicator_Code), 'r')
+
+plt.show()
+
+
 plt.plot(time_and_values('Germany',Indicator_Code), 'r')
-plt.plot(time_and_values('France',Indicator_Code), 'b')
+# plt.plot(time_and_values('France',Indicator_Code), 'b')
+# plt.plot(time_and_values('United Kingdom',Indicator_Code), 'g')
+
 plt.show()
 
 os.chdir(previous_dir)
