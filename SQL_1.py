@@ -58,30 +58,41 @@ def Indicator_finder(str):
 	
 # ******  Plotting  ******
 
+# Choosing indicators and Year to be plotted
+# Looking up indicators is still a pain. Would be good to drop all the indicators that have only few years and countries from the data file. Better make a copy of the sql file before attempting that ;)
+Indicator_Code_x ='SP.DYN.IMRT.IN' #	Mortality rate, infant (per 1,000 live births)
+Indicator_Code_y ='SH.XPD.PUBL.ZS' #	Health expenditure, public (% of GDP)
+Indicator_Code_z ='SH.STA.ACSN.UR' #	Improved sanitation facilities, urban (% of urban population with access)4
+Year_1 = 2010 #Would be nice to animate through several years, potentially with the circels drawing a path each over the years
 
-
-countries = ('Germany', 'France', 'Poland', 'Austria', 'Taiwan', 'China')
-Indicator_Code_x ='AG.YLD.CREL.KG'
-Indicator_Code_y ='AG.PRD.FOOD.XD'
-Indicator_Code_z ='AG.PRD.CROP.XD'
-Year_1 = 2010
-
-plt.title(
-	"x =" +str(Indicator_Name_f(Indicator_Code_x))+
-	",y = " +str(Indicator_Name_f(Indicator_Code_y))+
-	",area=" +str(Indicator_Name_f(Indicator_Code_z))
-	)
-
-area_normalisation  = sum(pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries),
-	conn, params={'x': Indicator_Code_z, 'n': Year_1}).values)/(len(countries))
+countries = ('Germany', 'France', 'Poland', 'Austria', 'Taiwan', 'China', 
+	'Mexico', 'Brazil','Pakistan', 'Japan', 'Spain', 'Greece', 'Turkey','Lybia',
+	'Namibia','Angola','Mali', 'Estonia','Israel','Irak', 'Iran', 'Chile','Columbia',
+	'Sudan','Uganda','Algeria', 'Australia',  'Egypt', 'Italy', 'Russia', 'Denmark', 'India')
 	
+# This doesnt work yet. Would be nice to select countries automatically if they have data for the indicators x y and z and required Year(s) available
+#str(tuple(Country_Name[0].encode('utf-8')for Country_Name in 
+#	pd.read_sql_query("SELECT CountryName FROM Indicators WHERE IndicatorCode=:x AND IndicatorCode=:y AND IndicatorCode=:z AND Year=:n  LIMIT 100 ",conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_1}).values))
+#pd.read_sql_query("SELECT IndicatorName, IndicatorCode FROM Indicators GROUP BY IndicatorName HAVING COUNT(DISTINCT Year) = 56 LIMIT 100", conn)
+
+
+# labeling the axis 
+plt.xlabel(str(Indicator_Name_f(Indicator_Code_x)))
+plt.ylabel(str(Indicator_Name_f(Indicator_Code_y)))
+# giving the source of the plot marker area in the title. Maybe change to legend
+plt.title("area=" +str(Indicator_Name_f(Indicator_Code_z)))
+
+#normalisation of the plot marker size
+area_normalisation  = sum(pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN " +str(countries),
+	conn, params={'x': Indicator_Code_z, 'n': Year_1}).values)/(len(countries))	
+# defining x and y values
 x = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries),
 	conn, params={'x': Indicator_Code_x, 'n': Year_1}).values
 y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries),
 	conn, params={'x': Indicator_Code_y, 'n': Year_1}).values
-area = 100*pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries),
-	conn, params={'x': Indicator_Code_z, 'n': Year_1}).values/area_normalisation
-
+# plotmarkersize, it's been normalised, squared and multiplied by 100 to give a visible change in size. This is not necessariliy a good representation
+area = 100*(pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries),
+	conn, params={'x': Indicator_Code_z, 'n': Year_1}).values/area_normalisation)**2
 
 plt.scatter(x, y, s=area, alpha=0.5)
 plt.show()
@@ -90,18 +101,19 @@ plt.show()
 
 	
 Indicator_Code ='AG.YLD.CREL.KG'
-	
 
-# plt.figure()
-# for Country_Name in [str(Country_Name[0].encode('utf-8'))for Country_Name in pd.read_sql_query("SELECT ShortName  FROM Country LIMIT 10 ",conn).values]:
-	# plt.plot(time_and_values(Country_Name,Indicator_Code), 'r')
 
-# plt.show()
+#plots for a bunch of countries for just one indicator
+plt.figure()
+for Country_Name in [str(Country_Name[0].encode('utf-8'))for Country_Name in pd.read_sql_query("SELECT ShortName  FROM Country LIMIT 10 ",conn).values]:
+	plt.plot(time_and_values(Country_Name,Indicator_Code))
 
-# plt.title(str(Indicator_Name_f(Indicator_Code)))
-# plt.plot(time_and_values('Germany',Indicator_Code), 'r')
-# plt.plot(time_and_values('France',Indicator_Code), 'b')
-# plt.plot(time_and_values('United Kingdom',Indicator_Code), 'g')
-# plt.show()
+plt.show()
+
+plt.title(str(Indicator_Name_f(Indicator_Code)))
+plt.plot(time_and_values('Germany',Indicator_Code), 'r')
+plt.plot(time_and_values('France',Indicator_Code), 'b')
+plt.plot(time_and_values('United Kingdom',Indicator_Code), 'g')
+plt.show()
 
 os.chdir(previous_dir)
