@@ -5,3 +5,6 @@ The World Development Indicators from the World Bank contain over a thousand ann
 Future avenues may explore relationships with world climate data found at https://www.kaggle.com/berkeleyearth/climate-change-earth-surface-temperature-data. 
 
 A project by Oliver Gindele and Gregor Hannappel.
+
+
+[![Join the chat at https://gitter.im/echna/world-development-indicators](https://badges.gitter.im/echna/world-development-indicators.svg)](https://gitter.im/echna/world-development-indicators?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
