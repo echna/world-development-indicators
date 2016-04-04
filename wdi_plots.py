@@ -1,26 +1,25 @@
 
+import os, platform
 import numpy as np
 import pandas as pd
 import scipy as sp
-import seaborn as sns
+
 import sqlite3
+
 import matplotlib.pyplot as plt
 
-import os
-previous_dir = os.getcwd()
+from bokeh.plotting import figure, show, output_file, ColumnDataSource
+from bokeh.models import HoverTool
 
-os.chdir(previous_dir +'\world-development-indicators-data')
+#get base directory and OS
+orig_dir = os.getcwd()
 
-# store_Country = pd.HDFStore('Country')
-# store_indicators = pd.HDFStore('Indicators')
+#select correct path depending on OS
+if os.name =='posix':
+	os.chdir(orig_dir +'/world-development-indicators-data')
+elif os.name=='windows':
+	os.chdir(orig_dir +'\world-development-indicators-data')
 
-# # Indicators = pd.read_csv('Indicators.csv',parse_dates=[0], infer_datetime_format=True)
-# # store_indicators['Indicators'] = Indicators
-# # Country = pd.read_csv('Country.csv',parse_dates=[0], infer_datetime_format=True)
-# # store_Country['Country'] = Country
-
-# Country = store_Country['Country']
-# Indicators = store_indicators['Indicators']
 
 conn = sqlite3.connect('database.sqlite')
 
@@ -53,7 +52,7 @@ def time_and_values(Country_Name,Indicator_Code):
 
 def Indicator_finder(str):
 	'''given a string lists the first 10 indictors that contain this string'''
-	return pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorName LIKE @x GROUP BY IndicatorName LIMIT 10",conn,  params={'x': '%'+str +'%'})
+	return pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorName LIKE x GROUP BY IndicatorName LIMIT 10",conn,  params={'x': '%'+str +'%'})
 
 def scatter_plot(Year_1 = 2010, Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Code_y = 'SH.XPD.PUBL.ZS',Indicator_Code_z='SP.DYN.CBRT.IN'):
 	'''generate scatter plot for choosen year with x and y axis and area of scatter spots as z axis '''
@@ -103,6 +102,57 @@ def scatter_plot(Year_1 = 2010, Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Co
 	return plt.show()
 
 
+def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 = 2010,):
+	'''generate scatter plot with bokeh for choosen year with x and y axis and area of scatter spots as z axis '''
+
+	query_str=str(
+	"SELECT CountryName FROM Indicators WHERE IndicatorCode=:x AND Year=:n "
+	+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:y AND Year=:n  "
+	+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:z AND Year=:n "
+	)
+
+	#get countries for the selected indicators
+	countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_1}).astype(str).values[:,0])
+
+	# defining x and y values
+	x = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
+		conn, params={'x': Indicator_Code_x, 'n': Year_1}).values
+	y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
+		conn, params={'x': Indicator_Code_y, 'n': Year_1}).values
+	birth_rate =pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
+		conn, params={'x': Indicator_Code_z, 'n': Year_1}).values
+
+
+	#pack source data
+	source = ColumnDataSource(data=dict(
+	            x=x[:,0],
+	            y=y[:,0],
+	            countries=sorted(countries),
+	            z=birth_rate[:,0]
+	        )
+	    )
+
+	#create hover tooltips
+	hover = HoverTool(
+	        tooltips=[
+	            ("Country", "@countries"),
+	            ("birth_rate", "@z"),
+	            ("(x,y)", "($x, $y)"),
+	            ]
+	    )
+
+	#create figure
+	p = figure(tools=[hover], title = "Year=" +str(Year_1))
+
+	#set labels
+	p.xaxis.axis_label = str(Indicator_Name_f(Indicator_Code_x))
+	p.yaxis.axis_label = str(Indicator_Name_f(Indicator_Code_y))
+
+	#plot
+	p.scatter('x','y', radius=birth_rate[:,0]*0.01, source=source)
+	show(p)
+
+
 def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 	plt.figure()
 	plt.title(str(Indicator_Name_f(Indicator_Code)))
@@ -114,16 +164,21 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 			plt.plot(time_and_values(Country_Name,Indicator_Code))
 	#plots for a bunch of countries for just one indicator
 	return plt.show()
-	
+
+
 	
 # ******  Plotting  ******
 
-timeseries_plot()
+#timeseries_plot()
 
-# scatter_plot()
+Indicator_Code_x = 'SH.XPD.PUBL.ZS'
+Indicator_Code_y = 'SP.DYN.IMRT.IN'
+Indicator_Code_z = 'SP.DYN.CBRT.IN'
 
+Year_1=2010
+
+scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z,Year_1)
 	
-
 
 # plt.title(str(Indicator_Name_f(Indicator_Code)))
 # plt.plot(time_and_values('Germany',Indicator_Code), 'r')
@@ -131,4 +186,4 @@ timeseries_plot()
 # plt.plot(time_and_values('United Kingdom',Indicator_Code), 'g')
 # plt.show()
 
-os.chdir(previous_dir)
+os.chdir(orig_dir)
