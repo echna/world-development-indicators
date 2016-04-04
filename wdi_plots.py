@@ -142,7 +142,7 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	    )
 
 	#create figure
-	p = figure(tools=[hover], title = "Year=" +str(Year_1))
+	p = figure(tools=[hover, "pan,wheel_zoom,box_zoom,reset,resize"], title = "Year=" +str(Year_1))
 
 	#set labels
 	p.xaxis.axis_label = str(Indicator_Name_f(Indicator_Code_x))
@@ -150,6 +150,7 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 
 	#plot
 	p.scatter('x','y', radius=birth_rate[:,0]*0.01, source=source)
+	output_file("wdi_scatter.html", title="wdi_plot.py")
 	show(p)
 
 
