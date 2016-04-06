@@ -1,4 +1,10 @@
 
+'''
+run the comand below in cmd before using this notebook
+bokeh serve wdi_plots.py
+then in your browser go to http://localhost:5006/wdi_plots
+'''
+
 import os, platform
 import numpy as np
 import pandas as pd
@@ -19,7 +25,7 @@ orig_dir = os.getcwd()
 #select correct path depending on OS
 if os.name =='posix':
 	os.chdir(orig_dir +'/world-development-indicators-data')
-elif os.name=='windows':
+elif os.name=='nt':
 	os.chdir(orig_dir +'\world-development-indicators-data')
 
 
@@ -38,6 +44,9 @@ table_names = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='tabl
 	
 # ******  FUNCTIONS  ******
 
+# codes = pd.read_sql_query("SELECT IndicatorCode FROM Indicators ",conn).values[:,0]
+# codes_unique = np.unique([str(i[:2]) for i in codes])
+
 codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', 'EG', 'EN',
        'EP', 'ER', 'FB', 'FD', 'FI', 'FM', 'FP', 'FR', 'FS', 'GB', 'GC',
        'IC', 'IE', 'IP', 'IQ', 'IS', 'IT', 'LP', 'MS', 'NE', 'NV', 'NY',
@@ -48,11 +57,12 @@ codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', '
 def Indicator_group(str):
 	'''given a string lists the first 10 indictors that contain this string'''
 	return pd.read_sql_query("SELECT IndicatorName  FROM Indicators WHERE IndicatorCode LIKE @x GROUP BY IndicatorCode",
-		conn,  params={'x': str +'%'})	
+		conn,  params={'x': str +'%'})
 
 def Indicator_Name_f(Indicator_Code):
 	'''generates Indicator_Name from Code'''
-	return pd.read_sql_query("SELECT IndicatorName FROM Indicators WHERE IndicatorCode=:y LIMIT 1",conn, params={'y': Indicator_Code}).values[0,0]
+	return pd.read_sql_query("SELECT IndicatorName FROM Indicators WHERE IndicatorCode=:y LIMIT 1",
+		conn, params={'y': Indicator_Code}).values[0,0]
 
 def time_and_values(Country_Name,Indicator_Code):
 	'''generates values for Country_Name  and Indicator_Code indexed by the year'''
@@ -65,9 +75,10 @@ def time_and_values(Country_Name,Indicator_Code):
 
 def Indicator_finder(str):
 	'''given a string lists the first 10 indictors that contain this string'''
-	return pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorName LIKE x GROUP BY IndicatorName LIMIT 10",conn,  params={'x': '%'+str +'%'})
+	return pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorName LIKE @x GROUP BY IndicatorName LIMIT 10",
+		conn,  params={'x': '%'+str +'%'})
 
-def scatter_plot(Year_1 = 2010, Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Code_y = 'SH.XPD.PUBL.ZS',Indicator_Code_z='SP.DYN.CBRT.IN'):
+def scatter_plot( Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Code_y = 'SH.XPD.PUBL.ZS',Indicator_Code_z='SP.DYN.CBRT.IN',Year_1 = 2010):
 	'''generate scatter plot for choosen year with x and y axis and area of scatter spots as z axis '''
 	
 	#get countries for the selected indicators
@@ -95,7 +106,6 @@ def scatter_plot(Year_1 = 2010, Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Co
 	plt.scatter(x, y, s=area, alpha=.7, c = 'red')
 	return plt.show()
 
-
 def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 = 2010,):
 	'''generate scatter plot with bokeh for choosen year with x and y axis and area of scatter spots as z axis '''
 
@@ -115,7 +125,7 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 		conn, params={'x': Indicator_Code_x, 'n': Year_1}).values
 	y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
 		conn, params={'x': Indicator_Code_y, 'n': Year_1}).values
-	z =pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
+	z = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
 		conn, params={'x': Indicator_Code_z, 'n': Year_1}).values
 	z_normalisation = max(z)[0]
 
@@ -125,7 +135,7 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	            x=x[:,0],
 	            y=y[:,0],
 	            countries=sorted(countries),
-	            z=z[:,0]*0.01
+	            z=z[:,0]
 	        )
 	    )
 
@@ -133,21 +143,28 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	hover = HoverTool(
 	        tooltips=[
 	            ("Country", "@countries"),
-	            ("birth_rate", "@z"),
-	            ("(x,y)", "($x, $y)"),
+	            (str(Indicator_Name_f(Indicator_Code_z)), "@z"),
+	            ("(x,y)", "(@x, @y)"),
 	            ]
 	    )
 
 	#create figure
-	p = Figure(tools=[hover, "pan,wheel_zoom,box_zoom,reset,resize"], title = "Year=" +str(Year_1))
-
+	p = Figure(plot_height=600, plot_width=600,tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
+	
+	# set title
+	p.title = (
+		"Year=" +str(Year_1) # a linebreak would be good here, to fit all in the title
+		+ " -- Spot area ~" + str(Indicator_Name_f(Indicator_Code_z))   )
+	p.title_text_font_size = '12pt'
+	p.title_text_align = 'left' # to ensure the year is displayed even for long names of the z-indicator
+	
 	#set labels
 	p.xaxis.axis_label = str(Indicator_Name_f(Indicator_Code_x))
 	p.yaxis.axis_label = str(Indicator_Name_f(Indicator_Code_y))
-
+	
 	#plot
-	p.scatter('x','y', radius='z', source=source)
-
+	p.scatter('x','y', radius=.5*z[:,0]/z_normalisation, source=source, alpha=.5)
+	
 	# Set up widgets
 	year = Slider(title="Year", value=2010, start=2000, end=2015, step=1)
 
@@ -170,10 +187,10 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 		z_normalisation = max(z)[0]
 
 		source.data = dict(
-	            x=x[:,0],
-	            y=y[:,0],
-	            countries=sorted(countries),
-	            z=z[:,0]*0.01
+			x=x[:,0],
+			y=y[:,0],
+			countries=sorted(countries),
+			z=z[:,0]
 	        )
 	
 	#set updates    
@@ -186,9 +203,6 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 
 	##not sure what this is meant to do
 	curdoc().add_root(HBox(children=[inputs, p]))
-
-	#output_file("wdi_scatter.html", title="wdi_plot.py")
-	#show(p)
 
 
 def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
