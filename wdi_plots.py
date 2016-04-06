@@ -135,7 +135,7 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	            x=x[:,0],
 	            y=y[:,0],
 	            countries=sorted(countries),
-	            z=z[:,0]
+	            z=.5*z[:,0]/z_normalisation
 	        )
 	    )
 
@@ -149,7 +149,7 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	    )
 
 	#create figure
-	p = Figure(plot_height=600, plot_width=600,tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
+	p = Figure(tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
 	
 	# set title
 	p.title = (
@@ -163,14 +163,15 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	p.yaxis.axis_label = str(Indicator_Name_f(Indicator_Code_y))
 	
 	#plot
-	p.scatter('x','y', radius=.5*z[:,0]/z_normalisation, source=source, alpha=.5)
+	p.scatter('x','y', radius='z', source=source, alpha=.5)
 	
 	# Set up widgets
-	year = Slider(title="Year", value=2010, start=2000, end=2015, step=1)
+	year = Slider(title="Year", value=Year_1, start= 1990 , end=2015, step=1)
 
 	# Set up callbacks
 	def update_title(attrname, old, new):
-		p.title = "Year=" +str(year.value)
+		p.title = ("Year=" +str(year.value)
+			+ " -- Spot area ~" + str(Indicator_Name_f(Indicator_Code_z))   )
 
 	
 	def update_data(attrname, old, new):
@@ -184,14 +185,15 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 			conn, params={'x': Indicator_Code_y, 'n': year.value}).values
 		z = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
 			conn, params={'x': Indicator_Code_z, 'n': year.value}).values
-		z_normalisation = max(z)[0]
+		#max() gives errors for empty sets 
+		#z_normalisation = max(z)[0]
 
 		source.data = dict(
-			x=x[:,0],
-			y=y[:,0],
-			countries=sorted(countries),
-			z=z[:,0]
-	        )
+	        x=x[:,0],
+	        y=y[:,0],
+	        countries=sorted(countries),
+	        z=.5*z[:,0]/z_normalisation
+	    )
 	
 	#set updates    
 	year.on_change('value', update_title)
