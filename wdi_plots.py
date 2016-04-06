@@ -38,7 +38,18 @@ table_names = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='tabl
 	
 # ******  FUNCTIONS  ******
 
-	
+codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', 'EG', 'EN',
+       'EP', 'ER', 'FB', 'FD', 'FI', 'FM', 'FP', 'FR', 'FS', 'GB', 'GC',
+       'IC', 'IE', 'IP', 'IQ', 'IS', 'IT', 'LP', 'MS', 'NE', 'NV', 'NY',
+       'PA', 'PX', 'SE', 'SG', 'SH', 'SI', 'SL', 'SM', 'SN', 'SP', 'ST',
+       'TG', 'TM', 'TT', 'TX', 'VC', 'pe'],
+      dtype='|S2')
+
+def Indicator_group(str):
+	'''given a string lists the first 10 indictors that contain this string'''
+	return pd.read_sql_query("SELECT IndicatorName  FROM Indicators WHERE IndicatorCode LIKE @x GROUP BY IndicatorCode",
+		conn,  params={'x': str +'%'})	
+
 def Indicator_Name_f(Indicator_Code):
 	'''generates Indicator_Name from Code'''
 	return pd.read_sql_query("SELECT IndicatorName FROM Indicators WHERE IndicatorCode=:y LIMIT 1",conn, params={'y': Indicator_Code}).values[0,0]
