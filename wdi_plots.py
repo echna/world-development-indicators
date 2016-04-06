@@ -47,6 +47,7 @@ table_names = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='tabl
 # codes = pd.read_sql_query("SELECT IndicatorCode FROM Indicators ",conn).values[:,0]
 # codes_unique = np.unique([str(i[:2]) for i in codes])
 
+#unigue first 2 letters of IndicatorCodes
 codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', 'EG', 'EN',
        'EP', 'ER', 'FB', 'FD', 'FI', 'FM', 'FP', 'FR', 'FS', 'GB', 'GC',
        'IC', 'IE', 'IP', 'IQ', 'IS', 'IT', 'LP', 'MS', 'NE', 'NV', 'NY',
@@ -55,7 +56,7 @@ codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', '
       dtype='|S2')
 
 def Indicator_group(str):
-	'''given a string lists the first 10 indictors that contain this string'''
+	'''given the start of an IndicatorCode this fucntion returns all IndicatorNames of that subgroup of indicators'''
 	return pd.read_sql_query("SELECT IndicatorName  FROM Indicators WHERE IndicatorCode LIKE @x GROUP BY IndicatorCode",
 		conn,  params={'x': str +'%'})
 
@@ -225,13 +226,13 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 
 #timeseries_plot()
 
-Indicator_Code_x = 'SH.XPD.PUBL.ZS'  #Mortality rate, infant (per 1,000 live births)
-Indicator_Code_y = 'SP.DYN.IMRT.IN'	 #Health expenditure, public (% of GDP)
-Indicator_Code_z = 'SP.DYN.CBRT.IN'  #Birth rate, crude (per 1,000 people)
+# Indicator_Code_x = 'SH.XPD.PUBL.ZS'  #Mortality rate, infant (per 1,000 live births)
+# Indicator_Code_y = 'SP.DYN.IMRT.IN'	 #Health expenditure, public (% of GDP)
+# Indicator_Code_z = 'SP.DYN.CBRT.IN'  #Birth rate, crude (per 1,000 people)
 
-Year_1=2010
+# Year_1=2010
 
-scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z,Year_1)
+# scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z,Year_1)
 	
 
 # plt.title(str(Indicator_Name_f(Indicator_Code)))
