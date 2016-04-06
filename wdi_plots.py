@@ -8,8 +8,10 @@ import sqlite3
 
 import matplotlib.pyplot as plt
 
-from bokeh.plotting import figure, show, output_file, ColumnDataSource
-from bokeh.models import HoverTool
+from bokeh.plotting import Figure, show, output_file, ColumnDataSource
+from bokeh.models import HoverTool, ColumnDataSource, HBox, VBoxForm
+from bokeh.models.widgets import Slider
+from bokeh.io import curdoc
 
 #get base directory and OS
 orig_dir = os.getcwd()
@@ -57,34 +59,15 @@ def Indicator_finder(str):
 def scatter_plot(Year_1 = 2010, Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Code_y = 'SH.XPD.PUBL.ZS',Indicator_Code_z='SP.DYN.CBRT.IN'):
 	'''generate scatter plot for choosen year with x and y axis and area of scatter spots as z axis '''
 	
-	#######  Needs more automisation in general in particular taking care of missing values before ca 1980
-	
-	# needs some checks to exclude data, which does not have all three indicators for the specified year
-	
-	# Choosing indicators and Year to be plotted
-	# Looking up indicators is still a pain. Maybe construct a shortlist of indicators which are obviously related to heath issues
-	# Indicator_Code_x ='SP.DYN.IMRT.IN' #	Mortality rate, infant (per 1,000 live births)
-	# Indicator_Code_y ='SH.XPD.PUBL.ZS' #	Health expenditure, public (% of GDP)
-	# Indicator_Code_z ='SP.DYN.CBRT.IN' #	Birth rate, crude (per 1,000 people)
-	# Year_1 = 2010 #Would be nice to animate through several years, potentially with the circels drawing a path each over the years
-
+	#get countries for the selected indicators
 	countries = ('Germany', 'France', 'Poland', 'Austria', 'Taiwan', 'China', 'Mexico', 'Brazil','Pakistan', 'Japan', 'Spain', 'Greece', 'Turkey','Lybia','Namibia','Angola','Mali', 'Estonia','Israel','Irak', 'Iran', 'Chile','Columbia','Sudan','Uganda','Algeria', 'Australia',  'Egypt', 'Italy', 'Russia', 'Denmark', 'India')
-		
-	# This doesnt work yet. Would be nice to select countries automatically if they have data for the indicators x y and z and required Year(s) available
-	#str(tuple(Country_Name[0].encode('utf-8')for Country_Name in 
-	#	pd.read_sql_query("SELECT CountryName FROM Indicators WHERE IndicatorCode=:x AND IndicatorCode=:y AND 
-		# IndicatorCode=:z AND Year=:n  LIMIT 100 ",conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_1}).values))
-	#pd.read_sql_query("SELECT IndicatorName, IndicatorCode FROM Indicators GROUP BY IndicatorName HAVING COUNT(DISTINCT Year) = 56 LIMIT 100", conn)
-
+	countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_1}).astype(str).values[:,0])
 
 	# labeling the axis 
 	plt.xlabel(str(Indicator_Name_f(Indicator_Code_x)))
 	plt.ylabel(str(Indicator_Name_f(Indicator_Code_y)))
 	# giving the source of the plot marker area in the title. Maybe change to legend
 	plt.title("area=" +str(Indicator_Name_f(Indicator_Code_z)))
-	
-	# add legend for year
-	# hover labels for the countries would be nice
 	
 	#normalisation of the plot marker size
 	area_normalisation  = max(pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN " +str(countries),
@@ -105,6 +88,8 @@ def scatter_plot(Year_1 = 2010, Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Co
 def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 = 2010,):
 	'''generate scatter plot with bokeh for choosen year with x and y axis and area of scatter spots as z axis '''
 
+
+	#initialize data
 	query_str=str(
 	"SELECT CountryName FROM Indicators WHERE IndicatorCode=:x AND Year=:n "
 	+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:y AND Year=:n  "
@@ -119,8 +104,9 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 		conn, params={'x': Indicator_Code_x, 'n': Year_1}).values
 	y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
 		conn, params={'x': Indicator_Code_y, 'n': Year_1}).values
-	birth_rate =pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
+	z =pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
 		conn, params={'x': Indicator_Code_z, 'n': Year_1}).values
+	z_normalisation = max(z)[0]
 
 
 	#pack source data
@@ -128,7 +114,7 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	            x=x[:,0],
 	            y=y[:,0],
 	            countries=sorted(countries),
-	            z=birth_rate[:,0]
+	            z=z[:,0]*0.01
 	        )
 	    )
 
@@ -142,16 +128,56 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	    )
 
 	#create figure
-	p = figure(tools=[hover, "pan,wheel_zoom,box_zoom,reset,resize"], title = "Year=" +str(Year_1))
+	p = Figure(tools=[hover, "pan,wheel_zoom,box_zoom,reset,resize"], title = "Year=" +str(Year_1))
 
 	#set labels
 	p.xaxis.axis_label = str(Indicator_Name_f(Indicator_Code_x))
 	p.yaxis.axis_label = str(Indicator_Name_f(Indicator_Code_y))
 
 	#plot
-	p.scatter('x','y', radius=birth_rate[:,0]*0.01, source=source)
-	output_file("wdi_scatter.html", title="wdi_plot.py")
-	show(p)
+	p.scatter('x','y', radius='z', source=source)
+
+	# Set up widgets
+	year = Slider(title="Year", value=2010, start=2000, end=2015, step=1)
+
+	# Set up callbacks
+	def update_title(attrname, old, new):
+		p.title = "Year=" +str(year.value)
+
+	
+	def update_data(attrname, old, new):
+		# Get the current slider values
+		
+		# Generate values
+		countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': year.value}).astype(str).values[:,0])
+		x = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
+			conn, params={'x': Indicator_Code_x, 'n': year.value}).values
+		y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
+			conn, params={'x': Indicator_Code_y, 'n': year.value}).values
+		z = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
+			conn, params={'x': Indicator_Code_z, 'n': year.value}).values
+		z_normalisation = max(z)[0]
+
+		source.data = dict(
+	            x=x[:,0],
+	            y=y[:,0],
+	            countries=sorted(countries),
+	            z=z[:,0]*0.01
+	        )
+	
+	#set updates    
+	year.on_change('value', update_title)
+	year.on_change('value', update_data)
+
+
+	# Set up layouts and add to document
+	inputs = VBoxForm(children=[year])
+
+	##not sure what this is meant to do
+	curdoc().add_root(HBox(children=[inputs, p]))
+
+	#output_file("wdi_scatter.html", title="wdi_plot.py")
+	#show(p)
 
 
 def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
@@ -172,9 +198,9 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 
 #timeseries_plot()
 
-Indicator_Code_x = 'SH.XPD.PUBL.ZS'
-Indicator_Code_y = 'SP.DYN.IMRT.IN'
-Indicator_Code_z = 'SP.DYN.CBRT.IN'
+Indicator_Code_x = 'SH.XPD.PUBL.ZS'  #Mortality rate, infant (per 1,000 live births)
+Indicator_Code_y = 'SP.DYN.IMRT.IN'	 #Health expenditure, public (% of GDP)
+Indicator_Code_z = 'SP.DYN.CBRT.IN'  #Birth rate, crude (per 1,000 people)
 
 Year_1=2010
 
