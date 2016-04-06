@@ -8,10 +8,8 @@ import sqlite3
 
 import matplotlib.pyplot as plt
 
-from bokeh.plotting import Figure, show, output_file
-from bokeh.models import HoverTool,ColumnDataSource, HBox, VBoxForm
-from bokeh.models.widgets import Slider
-from bokeh.io import curdoc
+from bokeh.plotting import figure, show, output_file, ColumnDataSource
+from bokeh.models import HoverTool
 
 #get base directory and OS
 orig_dir = os.getcwd()
@@ -19,7 +17,7 @@ orig_dir = os.getcwd()
 #select correct path depending on OS
 if os.name =='posix':
 	os.chdir(orig_dir +'/world-development-indicators-data')
-elif os.name=='nt':
+elif os.name=='windows':
 	os.chdir(orig_dir +'\world-development-indicators-data')
 
 
@@ -41,8 +39,7 @@ table_names = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='tabl
 	
 def Indicator_Name_f(Indicator_Code):
 	'''generates Indicator_Name from Code'''
-	return pd.read_sql_query("SELECT IndicatorName FROM Indicators WHERE IndicatorCode=:y LIMIT 1",
-		conn, params={'y': Indicator_Code}).values[0,0]
+	return pd.read_sql_query("SELECT IndicatorName FROM Indicators WHERE IndicatorCode=:y LIMIT 1",conn, params={'y': Indicator_Code}).values[0,0]
 
 def time_and_values(Country_Name,Indicator_Code):
 	'''generates values for Country_Name  and Indicator_Code indexed by the year'''
@@ -55,10 +52,9 @@ def time_and_values(Country_Name,Indicator_Code):
 
 def Indicator_finder(str):
 	'''given a string lists the first 10 indictors that contain this string'''
-	return pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorName LIKE x GROUP BY IndicatorName LIMIT 10",
-		conn,  params={'x': '%'+str +'%'})
+	return pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorName LIKE x GROUP BY IndicatorName LIMIT 10",conn,  params={'x': '%'+str +'%'})
 
-def scatter_plot( Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Code_y = 'SH.XPD.PUBL.ZS',Indicator_Code_z='SP.DYN.CBRT.IN',Year_1 = 2010):
+def scatter_plot(Year_1 = 2010, Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Code_y = 'SH.XPD.PUBL.ZS',Indicator_Code_z='SP.DYN.CBRT.IN'):
 	'''generate scatter plot for choosen year with x and y axis and area of scatter spots as z axis '''
 	
 	#######  Needs more automisation in general in particular taking care of missing values before ca 1980
@@ -123,9 +119,8 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 		conn, params={'x': Indicator_Code_x, 'n': Year_1}).values
 	y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
 		conn, params={'x': Indicator_Code_y, 'n': Year_1}).values
-	z = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
+	birth_rate =pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
 		conn, params={'x': Indicator_Code_z, 'n': Year_1}).values
-	z_normalisation = max(z)[0]
 
 
 	#pack source data
@@ -133,77 +128,30 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	            x=x[:,0],
 	            y=y[:,0],
 	            countries=sorted(countries),
-	            z=z[:,0]
+	            z=birth_rate[:,0]
 	        )
 	    )
 
-	
 	#create hover tooltips
 	hover = HoverTool(
 	        tooltips=[
 	            ("Country", "@countries"),
-	            (str(Indicator_Name_f(Indicator_Code_z)), "@z"),
-	            ("(x,y)", "(@x, @y)"),
+	            ("birth_rate", "@z"),
+	            ("(x,y)", "($x, $y)"),
 	            ]
 	    )
 
-	
 	#create figure
-	p = Figure(plot_height=600, plot_width=600,tools=[hover, "crosshair,pan,reset,resize,save,wheel_zoom"])
-	
-	# set title
-	p.title = (
-		"Year=" +str(Year_1) # a linebreak would be good here, to fit all in the title
-		+ " -- Spot area ~" + str(Indicator_Name_f(Indicator_Code_z))   )
-	p.title_text_font_size = '12pt'
-	p.title_text_align = 'left' # to ensure the year is displayed even for long names of the z-indicator
-	
+	p = figure(tools=[hover, "pan,wheel_zoom,box_zoom,reset,resize"], title = "Year=" +str(Year_1))
+
 	#set labels
 	p.xaxis.axis_label = str(Indicator_Name_f(Indicator_Code_x))
 	p.yaxis.axis_label = str(Indicator_Name_f(Indicator_Code_y))
-	
+
 	#plot
-	p.scatter('x','y', radius=.5*z[:,0]/z_normalisation, source=source, alpha=.5)
-	
-	# Set up widgets
-	year = Slider(title="Year", value=2010, start=2000, end=2015, step=1)
-
-	# Set up callbacks
-	def update_data(attrname, old, new):
-		# Get the current slider values
-		Year_temp  = year.value
-
-		# Generate values
-		countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_temp}).astype(str).values[:,0])
-		x = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-			conn, params={'x': Indicator_Code_x, 'n': Year_temp}).values
-		y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-			conn, params={'x': Indicator_Code_y, 'n': Year_temp}).values
-		z = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-			conn, params={'x': Indicator_Code_z, 'n': Year_temp}).values
-		z_normalisation = max(z)[0]
-
-		source.data = dict(
-			x=x[:,0],
-			y=y[:,0],
-			countries=sorted(countries),
-			z=z[:,0]
-	        )
-
-	year.on_change('value', update_data)
-
-
-	# Set up layouts and add to document
-	inputs = VBoxForm(children=[year])
-
-	##not sure what this is meant to do
-	#curdoc().add_root(HBox(children=[inputs, p], width=800))
-
-	plot  = HBox(children=[inputs, p], width=1000)
-	
-	
+	p.scatter('x','y', radius=birth_rate[:,0]*0.01, source=source)
 	output_file("wdi_scatter.html", title="wdi_plot.py")
-	show(plot)
+	show(p)
 
 
 def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
