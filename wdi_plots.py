@@ -15,7 +15,7 @@ import sqlite3
 import matplotlib.pyplot as plt
 
 from bokeh.plotting import Figure, show, output_file, ColumnDataSource
-from bokeh.models import HoverTool, ColumnDataSource, HBox, VBoxForm
+from bokeh.models import HoverTool, ColumnDataSource, HBox, VBoxForm, Select
 from bokeh.models.widgets import Slider
 from bokeh.io import curdoc
 
@@ -47,6 +47,7 @@ table_names = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='tabl
 # codes = pd.read_sql_query("SELECT IndicatorCode FROM Indicators ",conn).values[:,0]
 # codes_unique = np.unique([str(i[:2]) for i in codes])
 
+#unigue first 2 letters of IndicatorCodes
 codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', 'EG', 'EN',
        'EP', 'ER', 'FB', 'FD', 'FI', 'FM', 'FP', 'FR', 'FS', 'GB', 'GC',
        'IC', 'IE', 'IP', 'IQ', 'IS', 'IT', 'LP', 'MS', 'NE', 'NV', 'NY',
@@ -55,8 +56,8 @@ codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', '
       dtype='|S2')
 
 def Indicator_group(str):
-	'''given a string lists the first 10 indictors that contain this string'''
-	return pd.read_sql_query("SELECT IndicatorName  FROM Indicators WHERE IndicatorCode LIKE @x GROUP BY IndicatorCode",
+	'''given the start of an IndicatorCode this fucntion returns all IndicatorNames of that subgroup of indicators'''
+	return pd.read_sql_query("SELECT IndicatorCode, IndicatorName  FROM Indicators WHERE IndicatorCode LIKE @x GROUP BY IndicatorCode",
 		conn,  params={'x': str +'%'})
 
 def Indicator_Name_f(Indicator_Code):
@@ -165,26 +166,41 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	#plot
 	p.scatter('x','y', radius='z', source=source, alpha=.5)
 	
+	# generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
+	indicator_options_x = Indicator_group('SH.XPD').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SH.XPD' for now
+	indicator_options_y = Indicator_group('SP.DYN').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SP.DYN' for now
+	indicator_options_z = Indicator_group('SP.DYN').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SP.DYN' for now
+	
 	# Set up widgets
 	year = Slider(title="Year", value=Year_1, start= 1990 , end=2015, step=1)
-
+	indicator_x_select = Select(value=Indicator_Name_f(Indicator_Code_x), title='Indicator on x-axis', options=sorted(indicator_options_x.keys()))
+	indicator_y_select = Select(value=Indicator_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y.keys()))
+	indicator_z_select = Select(value=Indicator_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z.keys()))
+	
 	# Set up callbacks
 	def update_title(attrname, old, new):
 		p.title = ("Year=" +str(year.value)
-			+ " -- Spot area ~" + str(Indicator_Name_f(Indicator_Code_z))   )
-
+			+ " -- Spot area ~" + str(indicator_z_select.value)   )
+	
+	def update_xaxis(attrname, old, new):
+		p.xaxis.axis_label = str(indicator_x_select.value)
+	def update_yaxis(attrname, old, new):
+		p.yaxis.axis_label = str(indicator_y_select.value)
+	
 	
 	def update_data(attrname, old, new):
-		# Get the current slider values
-		
 		# Generate values
-		countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': year.value}).astype(str).values[:,0])
+		countries= tuple(pd.read_sql_query( query_str,conn, params={
+			'x': indicator_options_x[indicator_x_select.value],
+			'y': indicator_options_y[indicator_y_select.value],
+			'z': indicator_options_z[indicator_z_select.value],
+			'n': year.value}).astype(str).values[:,0])
 		x = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-			conn, params={'x': Indicator_Code_x, 'n': year.value}).values
+			conn, params={'x': indicator_options_x[indicator_x_select.value], 'n': year.value}).values
 		y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-			conn, params={'x': Indicator_Code_y, 'n': year.value}).values
+			conn, params={'x': indicator_options_y[indicator_y_select.value], 'n': year.value}).values
 		z = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-			conn, params={'x': Indicator_Code_z, 'n': year.value}).values
+			conn, params={'x': indicator_options_z[indicator_z_select.value], 'n': year.value}).values
 		#max() gives errors for empty sets 
 		#z_normalisation = max(z)[0]
 
@@ -196,14 +212,19 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	    )
 	
 	#set updates    
+	indicator_x_select.on_change('value', update_data)
+	indicator_x_select.on_change('value', update_xaxis)
+	indicator_y_select.on_change('value', update_data)
+	indicator_y_select.on_change('value', update_yaxis)
+	indicator_z_select.on_change('value', update_data)
+	indicator_z_select.on_change('value', update_title)
 	year.on_change('value', update_title)
 	year.on_change('value', update_data)
 
 
 	# Set up layouts and add to document
-	inputs = VBoxForm(children=[year])
+	inputs = VBoxForm(children=[year,indicator_x_select,indicator_y_select,indicator_z_select])
 
-	##not sure what this is meant to do
 	curdoc().add_root(HBox(children=[inputs, p]))
 
 
