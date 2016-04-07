@@ -65,6 +65,10 @@ def Indicator_Name_f(Indicator_Code):
 	return pd.read_sql_query("SELECT IndicatorName FROM Indicators WHERE IndicatorCode=:y LIMIT 1",
 		conn, params={'y': Indicator_Code}).values[0,0]
 
+def axis_values(Indicator_Code, year, countries):
+	return pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
+		conn, params={'x': Indicator_Code, 'n': year}).values
+		
 def time_and_values(Country_Name,Indicator_Code):
 	'''generates values for Country_Name  and Indicator_Code indexed by the year'''
 	data = pd.read_sql_query("SELECT Year,Value FROM Indicators WHERE CountryName=:x AND IndicatorCode=:y ",
@@ -83,9 +87,14 @@ def scatter_plot( Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Code_y = 'SH.XPD
 	'''generate scatter plot for choosen year with x and y axis and area of scatter spots as z axis '''
 	
 	#get countries for the selected indicators
-	countries = ('Germany', 'France', 'Poland', 'Austria', 'Taiwan', 'China', 'Mexico', 'Brazil','Pakistan', 'Japan', 'Spain', 'Greece', 'Turkey','Lybia','Namibia','Angola','Mali', 'Estonia','Israel','Irak', 'Iran', 'Chile','Columbia','Sudan','Uganda','Algeria', 'Australia',  'Egypt', 'Italy', 'Russia', 'Denmark', 'India')
+	query_str=str(
+	"SELECT CountryName FROM Indicators WHERE IndicatorCode=:x AND Year=:n "
+	+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:y AND Year=:n  "
+	+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:z AND Year=:n "
+	)
+	
 	countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_1}).astype(str).values[:,0])
-
+	
 	# labeling the axis 
 	plt.xlabel(str(Indicator_Name_f(Indicator_Code_x)))
 	plt.ylabel(str(Indicator_Name_f(Indicator_Code_y)))
@@ -106,10 +115,9 @@ def scatter_plot( Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Code_y = 'SH.XPD
 
 	plt.scatter(x, y, s=area, alpha=.7, c = 'red')
 	return plt.show()
-
+	
 def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 = 2010,):
 	'''generate scatter plot with bokeh for choosen year with x and y axis and area of scatter spots as z axis '''
-
 
 	#initialize data
 	query_str=str(
@@ -122,12 +130,9 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_1}).astype(str).values[:,0])
 
 	# defining x and y values
-	x = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-		conn, params={'x': Indicator_Code_x, 'n': Year_1}).values
-	y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-		conn, params={'x': Indicator_Code_y, 'n': Year_1}).values
-	z = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-		conn, params={'x': Indicator_Code_z, 'n': Year_1}).values
+	x = axis_values(Indicator_Code_x, Year_1,countries)
+	y = axis_values(Indicator_Code_y, Year_1,countries)
+	z = axis_values(Indicator_Code_z, Year_1,countries)
 	z_normalisation = max(z)[0]
 
 
@@ -195,12 +200,9 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 			'y': indicator_options_y[indicator_y_select.value],
 			'z': indicator_options_z[indicator_z_select.value],
 			'n': year.value}).astype(str).values[:,0])
-		x = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-			conn, params={'x': indicator_options_x[indicator_x_select.value], 'n': year.value}).values
-		y = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-			conn, params={'x': indicator_options_y[indicator_y_select.value], 'n': year.value}).values
-		z = pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-			conn, params={'x': indicator_options_z[indicator_z_select.value], 'n': year.value}).values
+		x = axis_values(indicator_options_x[indicator_x_select.value],  year.value,countries)
+		y = axis_values(indicator_options_y[indicator_y_select.value],  year.value,countries)
+		y = axis_values(indicator_options_z[indicator_z_select.value],  year.value,countries)
 		#max() gives errors for empty sets 
 		#z_normalisation = max(z)[0]
 
@@ -253,7 +255,7 @@ Indicator_Code_z = 'SP.DYN.CBRT.IN'  #Birth rate, crude (per 1,000 people)
 Year_1=2010
 
 scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z,Year_1)
-	
+
 
 # plt.title(str(Indicator_Name_f(Indicator_Code)))
 # plt.plot(time_and_values('Germany',Indicator_Code), 'r')
