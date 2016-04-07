@@ -19,56 +19,21 @@ from bokeh.models import HoverTool, ColumnDataSource, HBox, VBoxForm, Select
 from bokeh.models.widgets import Slider
 from bokeh.io import curdoc
 
-#get base directory and OS
-orig_dir = os.getcwd()
-
-#select correct path depending on OS
-if os.name =='posix':
-	os.chdir(orig_dir +'/world-development-indicators-data')
-elif os.name=='nt':
-	os.chdir(orig_dir +'\world-development-indicators-data')
-
-
-conn = sqlite3.connect('database.sqlite')
-
-# names of tables for orientation
-table_names = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table' ",  conn)
-			   # name
-	# 0       Country
-	# 1  CountryNotes
-	# 2        Series
-	# 3    Indicators
-	# 4   SeriesNotes
-	# 5     Footnotes
-
 	
 # ******  FUNCTIONS  ******
 
-# codes = pd.read_sql_query("SELECT IndicatorCode FROM Indicators ",conn).values[:,0]
-# codes_unique = np.unique([str(i[:2]) for i in codes])
-
-#unigue first 2 letters of IndicatorCodes
-codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', 'EG', 'EN',
-       'EP', 'ER', 'FB', 'FD', 'FI', 'FM', 'FP', 'FR', 'FS', 'GB', 'GC',
-       'IC', 'IE', 'IP', 'IQ', 'IS', 'IT', 'LP', 'MS', 'NE', 'NV', 'NY',
-       'PA', 'PX', 'SE', 'SG', 'SH', 'SI', 'SL', 'SM', 'SN', 'SP', 'ST',
-       'TG', 'TM', 'TT', 'TX', 'VC', 'pe'],
-      dtype='|S2')
-
 def Indicator_group(str):
-	'''given the start of an IndicatorCode this fucntion returns all IndicatorNames of that subgroup of indicators'''
-	return pd.read_sql_query("SELECT IndicatorCode, IndicatorName  FROM Indicators WHERE IndicatorCode LIKE @x GROUP BY IndicatorCode",
-		conn,  params={'x': str +'%'})
+	'''given the start of an IndicatorCode this function returns all IndicatorNames of that subgroup of indicators'''
+	return indicator_df[indicator_df.IndicatorCode.str.contains(str)==True].drop_duplicates('IndicatorName')	
 
 def Indicator_Name_f(Indicator_Code):
-	'''generates Indicator_Name from Code'''
-	return pd.read_sql_query("SELECT IndicatorName FROM Indicators WHERE IndicatorCode=:y LIMIT 1",
-		conn, params={'y': Indicator_Code}).values[0,0]
+	'''generates IndicatorName from Code'''
+	return indicator_df.IndicatorName[indicator_df.IndicatorCode==Indicator_Code].values.astype(str)[0]
 
 def axis_values(Indicator_Code, year, countries):
-	return pd.read_sql_query("SELECT Value FROM Indicators WHERE  IndicatorCode=:x AND Year=:n AND CountryName IN" +str(countries) + "ORDER BY CountryName",
-		conn, params={'x': Indicator_Code, 'n': year}).values
-		
+	"""get values for the Indicators for selected year and countries"""
+	return indicator_df.Value[(indicator_df.IndicatorCode==Indicator_Code) & (indicator_df.Year==year) & (indicator_df.CountryName.isin(countries)) ]
+
 def time_and_values(Country_Name,Indicator_Code):
 	'''generates values for Country_Name  and Indicator_Code indexed by the year'''
 	data = pd.read_sql_query("SELECT Year,Value FROM Indicators WHERE CountryName=:x AND IndicatorCode=:y ",
@@ -94,10 +59,12 @@ def scatter_plot( Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Code_y = 'SH.XPD
 	)
 	
 	countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_1}).astype(str).values[:,0])
+
 	
 	# labeling the axis 
 	plt.xlabel(str(Indicator_Name_f(Indicator_Code_x)))
 	plt.ylabel(str(Indicator_Name_f(Indicator_Code_y)))
+
 	# giving the source of the plot marker area in the title. Maybe change to legend
 	plt.title("area=" +str(Indicator_Name_f(Indicator_Code_z)))
 	
@@ -120,28 +87,24 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	'''generate scatter plot with bokeh for choosen year with x and y axis and area of scatter spots as z axis '''
 
 	#initialize data
-	query_str=str(
-	"SELECT CountryName FROM Indicators WHERE IndicatorCode=:x AND Year=:n "
-	+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:y AND Year=:n  "
-	+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:z AND Year=:n "
-	)
-
-	#get countries for the selected indicators
-	countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_1}).astype(str).values[:,0])
-
+	#get countries for the selected indicators, convert to string, and tuple and sort alphabetically
+	countries= tuple(sorted(pd.unique(pd.concat([
+		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_x],
+		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_y],
+		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_z]]).astype(str).values)))
+	
 	# defining x and y values
 	x = axis_values(Indicator_Code_x, Year_1,countries)
 	y = axis_values(Indicator_Code_y, Year_1,countries)
 	z = axis_values(Indicator_Code_z, Year_1,countries)
-	z_normalisation = max(z)[0]
-
+	z_normalisation = max(z)
 
 	#pack source data
 	source = ColumnDataSource(data=dict(
-	            x=x[:,0],
-	            y=y[:,0],
+	            x=x,
+	            y=y,
 	            countries=sorted(countries),
-	            z=.5*z[:,0]/z_normalisation
+	            z=.5*z/z_normalisation
 	        )
 	    )
 
@@ -172,9 +135,10 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	p.scatter('x','y', radius='z', source=source, alpha=.5)
 	
 	# generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
-	indicator_options_x = Indicator_group('SH.XPD').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SH.XPD' for now
-	indicator_options_y = Indicator_group('SP.DYN').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SP.DYN' for now
-	indicator_options_z = Indicator_group('SP.DYN').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SP.DYN' for now
+	#print Indicator_group('SH.XPD')
+	indicator_options_x = Indicator_group('.').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SH.XPD' for now
+	indicator_options_y = Indicator_group('.').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SP.DYN' for now
+	indicator_options_z = Indicator_group('.').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SP.DYN' for now
 	
 	# Set up widgets
 	year = Slider(title="Year", value=Year_1, start= 1990 , end=2015, step=1)
@@ -189,28 +153,29 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	
 	def update_xaxis(attrname, old, new):
 		p.xaxis.axis_label = str(indicator_x_select.value)
+
 	def update_yaxis(attrname, old, new):
 		p.yaxis.axis_label = str(indicator_y_select.value)
 	
-	
 	def update_data(attrname, old, new):
-		# Generate values
-		countries= tuple(pd.read_sql_query( query_str,conn, params={
-			'x': indicator_options_x[indicator_x_select.value],
-			'y': indicator_options_y[indicator_y_select.value],
-			'z': indicator_options_z[indicator_z_select.value],
-			'n': year.value}).astype(str).values[:,0])
+		#get countries for the selected indicators, convert to string, and tuple and sort alphabetically
+		countries= tuple(sorted(pd.unique(pd.concat([
+		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_x],
+		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_y],
+		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_z]]).astype(str).values)))
+
+		# regenerate values
 		x = axis_values(indicator_options_x[indicator_x_select.value],  year.value,countries)
 		y = axis_values(indicator_options_y[indicator_y_select.value],  year.value,countries)
 		y = axis_values(indicator_options_z[indicator_z_select.value],  year.value,countries)
 		#max() gives errors for empty sets 
-		#z_normalisation = max(z)[0]
+		z_normalisation = max(z)
 
 		source.data = dict(
-	        x=x[:,0],
-	        y=y[:,0],
+	        x=x,
+	        y=y,
 	        countries=sorted(countries),
-	        z=.5*z[:,0]/z_normalisation
+	        z=.5*z/z_normalisation
 	    )
 	
 	#set updates    
@@ -244,9 +209,36 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 
 
 	
-# ******  Plotting  ******
+# ******  Main  ******
 
-#timeseries_plot()
+#get base directory and OS
+orig_dir = os.getcwd()
+
+#select correct path depending on OS
+if os.name =='posix':
+	os.chdir(orig_dir +'/world-development-indicators-data')
+elif os.name=='nt':
+	os.chdir(orig_dir +'\world-development-indicators-data')
+
+#load data
+conn = sqlite3.connect('database.sqlite')
+
+#codes = pd.read_sql_query("SELECT IndicatorCode FROM Indicators ",conn).values[:,0]
+#codes_unique = np.unique([str(i[:2]) for i in codes])
+
+#unigue first 2 letters of IndicatorCodes
+codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', 'EG', 'EN',
+       'EP', 'ER', 'FB', 'FD', 'FI', 'FM', 'FP', 'FR', 'FS', 'GB', 'GC',
+       'IC', 'IE', 'IP', 'IQ', 'IS', 'IT', 'LP', 'MS', 'NE', 'NV', 'NY',
+       'PA', 'PX', 'SE', 'SG', 'SH', 'SI', 'SL', 'SM', 'SN', 'SP', 'ST',
+       'TG', 'TM', 'TT', 'TX', 'VC', 'pe'],
+      dtype='|S2')
+
+#reduced set for debugging and testing
+indicator_list=('SH.XPD.PUBL.ZS'  ,'SP.DYN.IMRT.IN' ,'SP.DYN.CBRT.IN', 'AG.PRD.CREL.MT', 'BM.GSR.FCTY.CD', 'EN.CO2.TRAN.ZS', 'AG.LND.ARBL.HA', 'DT.DOD.DSTC.ZS', 'EG.ELC.NUCL.ZS', 'EN.CO2.TRAN.ZS')
+indicator_df = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode in" +str(indicator_list) ,  conn)
+
+#indicator_df = pd.read_sql_query("SELECT * FROM Indicators",  conn)
 
 Indicator_Code_x = 'SH.XPD.PUBL.ZS'  #Mortality rate, infant (per 1,000 live births)
 Indicator_Code_y = 'SP.DYN.IMRT.IN'	 #Health expenditure, public (% of GDP)
@@ -255,12 +247,5 @@ Indicator_Code_z = 'SP.DYN.CBRT.IN'  #Birth rate, crude (per 1,000 people)
 Year_1=2010
 
 scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z,Year_1)
-
-
-# plt.title(str(Indicator_Name_f(Indicator_Code)))
-# plt.plot(time_and_values('Germany',Indicator_Code), 'r')
-# plt.plot(time_and_values('France',Indicator_Code), 'b')
-# plt.plot(time_and_values('United Kingdom',Indicator_Code), 'g')
-# plt.show()
 
 os.chdir(orig_dir)
