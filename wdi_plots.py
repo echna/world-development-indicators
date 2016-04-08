@@ -25,7 +25,7 @@ from bokeh.io import curdoc
 def Indicator_group(str):
 	'''given the start of an IndicatorCode this function returns all IndicatorNames of that subgroup of indicators'''
 	return indicator_df[indicator_df.IndicatorCode.str.contains(str)==True].drop_duplicates('IndicatorName')	
-
+	
 def Indicator_Name_f(Indicator_Code):
 	'''generates IndicatorName from Code'''
 	return indicator_df.IndicatorName[indicator_df.IndicatorCode==Indicator_Code].values.astype(str)[0]
@@ -82,28 +82,40 @@ def scatter_plot( Indicator_Code_x = 'SP.DYN.IMRT.IN',Indicator_Code_y = 'SH.XPD
 
 	plt.scatter(x, y, s=area, alpha=.7, c = 'red')
 	return plt.show()
-	
+
+def year_data(year_int, df):
+	return pd.concat(
+		[df.loc['x',year_int].set_index('CountryName').rename(columns={"Value": "x"}),
+		df.loc['y',year_int].set_index('CountryName').rename(columns={"Value": "y"}),
+		df.loc['z',year_int].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()	
+
 def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 = 2010,):
 	'''generate scatter plot with bokeh for choosen year with x and y axis and area of scatter spots as z axis '''
 
-	#initialize data
-	#get countries for the selected indicators, convert to string, and tuple and sort alphabetically
-	countries= tuple(sorted(pd.unique(pd.concat([
-		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_x],
-		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_y],
-		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_z]]).astype(str).values)))
+	# # drop 'IndicatorName' column
+	# indicator_df.drop(['CountryCode','IndicatorName'], axis=1, inplace=True)
+
+	# set index to 'IndicatorCode'
+	indicator_df.set_index('IndicatorCode',drop=False, inplace = True)
+
+	# build x,y,z df for the respective Indicator_Code_* indexed by year
+	x_df = indicator_df.loc[indicator_df.index.isin([Indicator_Code_x])].set_index('Year',drop=True)
+	y_df = indicator_df.loc[indicator_df.index.isin([Indicator_Code_y])].set_index('Year',drop=True)
+	z_df = indicator_df.loc[indicator_df.index.isin([Indicator_Code_z])].set_index('Year',drop=True)
+
+	# concatonate x,y and z data with multi-index as axis,year
+	temp_indicator_df = pd.concat([x_df, y_df, z_df], keys=['x', 'y', 'z'])
 	
 	# defining x and y values
-	x = axis_values(Indicator_Code_x, Year_1,countries)
-	y = axis_values(Indicator_Code_y, Year_1,countries)
-	z = axis_values(Indicator_Code_z, Year_1,countries)
+	temp_data = year_data(Year_1,temp_indicator_df )
+	x,y,z = temp_data['x'].values,temp_data['y'].values,temp_data['z'].values
 	z_normalisation = max(z)
 
 	#pack source data
 	source = ColumnDataSource(data=dict(
 	            x=x,
 	            y=y,
-	            countries=sorted(countries),
+	            countries=temp_data.index,
 	            z=.5*z/z_normalisation
 	        )
 	    )
@@ -157,36 +169,49 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	def update_yaxis(attrname, old, new):
 		p.yaxis.axis_label = str(indicator_y_select.value)
 	
-	def update_data(attrname, old, new):
-		#get countries for the selected indicators, convert to string, and tuple and sort alphabetically
-		countries= tuple(sorted(pd.unique(pd.concat([
-		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_x],
-		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_y],
-		indicator_df.CountryName[indicator_df.IndicatorCode==Indicator_Code_z]]).astype(str).values)))
-
-		# regenerate values
-		x = axis_values(indicator_options_x[indicator_x_select.value],  year.value,countries)
-		y = axis_values(indicator_options_y[indicator_y_select.value],  year.value,countries)
-		y = axis_values(indicator_options_z[indicator_z_select.value],  year.value,countries)
-		#max() gives errors for empty sets 
+	def update_data_year(attrname, old, new):
+		temp_data = year_data(year.value,temp_indicator_df )
+		
+		x,y,z = temp_data['x'].values,temp_data['y'].values,temp_data['z'].values
 		z_normalisation = max(z)
-
+		
 		source.data = dict(
 	        x=x,
 	        y=y,
-	        countries=sorted(countries),
+	        countries=temp_data.index,
+	        z=.5*z/z_normalisation
+	    )
+	
+	def update_data_indiactor(attrname, old, new):
+		# build x,y,z df for the respective Indicator_Code_* indexed by year
+		x_df = indicator_df.loc[indicator_df['IndicatorName'].isin([indicator_x_select.value])].set_index('Year',drop=True)
+		y_df = indicator_df.loc[indicator_df['IndicatorName'].isin([indicator_y_select.value])].set_index('Year',drop=True)
+		z_df = indicator_df.loc[indicator_df['IndicatorName'].isin([indicator_z_select.value])].set_index('Year',drop=True)
+
+		# concatonate x,y and z data with multi-index as axis,year
+		temp_indicator_df = pd.concat([x_df, y_df, z_df], keys=['x', 'y', 'z'])
+		
+		temp_data = year_data(year.value,temp_indicator_df )
+		
+		x,y,z = temp_data['x'].values,temp_data['y'].values,temp_data['z'].values
+		z_normalisation = max(z)
+		
+		source.data = dict(
+	        x=x,
+	        y=y,
+	        countries=temp_data.index,
 	        z=.5*z/z_normalisation
 	    )
 	
 	#set updates    
-	indicator_x_select.on_change('value', update_data)
+	indicator_x_select.on_change('value', update_data_indiactor)
 	indicator_x_select.on_change('value', update_xaxis)
-	indicator_y_select.on_change('value', update_data)
+	indicator_y_select.on_change('value', update_data_indiactor)
 	indicator_y_select.on_change('value', update_yaxis)
-	indicator_z_select.on_change('value', update_data)
+	indicator_z_select.on_change('value', update_data_indiactor)
 	indicator_z_select.on_change('value', update_title)
 	year.on_change('value', update_title)
-	year.on_change('value', update_data)
+	year.on_change('value', update_data_year)
 
 
 	# Set up layouts and add to document
@@ -236,9 +261,12 @@ codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', '
 
 #reduced set for debugging and testing
 indicator_list=('SH.XPD.PUBL.ZS'  ,'SP.DYN.IMRT.IN' ,'SP.DYN.CBRT.IN', 'AG.PRD.CREL.MT', 'BM.GSR.FCTY.CD', 'EN.CO2.TRAN.ZS', 'AG.LND.ARBL.HA', 'DT.DOD.DSTC.ZS', 'EG.ELC.NUCL.ZS', 'EN.CO2.TRAN.ZS')
+
 indicator_df = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode in" +str(indicator_list) ,  conn)
 
-#indicator_df = pd.read_sql_query("SELECT * FROM Indicators",  conn)
+# indicator_df = Indicator_group('SH')
+
+# indicator_df = pd.read_sql_query("SELECT * FROM Indicators",  conn)
 
 Indicator_Code_x = 'SH.XPD.PUBL.ZS'  #Mortality rate, infant (per 1,000 live births)
 Indicator_Code_y = 'SP.DYN.IMRT.IN'	 #Health expenditure, public (% of GDP)
@@ -247,5 +275,7 @@ Indicator_Code_z = 'SP.DYN.CBRT.IN'  #Birth rate, crude (per 1,000 people)
 Year_1=2010
 
 scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z,Year_1)
+
+
 
 os.chdir(orig_dir)
