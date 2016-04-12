@@ -62,19 +62,23 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 
 # Set up callbacks
 def update_data(attrname, old, new):	
-	x = indicator_df.loc[indicator_name_df.loc[indicator_x_select.value].values.astype(str)[0],year.value].Value.values
-	y = indicator_df.loc[indicator_name_df.loc[indicator_y_select.value].values.astype(str)[0],year.value].Value.values
-	z = indicator_df.loc[indicator_name_df.loc[indicator_z_select.value].values.astype(str)[0],year.value].Value.values
+	#reshape df
+	temp_df=pd.concat(
+		[indicator_df.loc[indicator_name_df.loc[indicator_x_select.value].values.astype(str)[0],year.value].set_index('CountryName').rename(columns={"Value": "x"}),
+		indicator_df.loc[indicator_name_df.loc[indicator_y_select.value].values.astype(str)[0],year.value].set_index('CountryName').rename(columns={"Value": "y"}),
+		indicator_df.loc[indicator_name_df.loc[indicator_z_select.value].values.astype(str)[0],year.value].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()
+
+	#get countries 
+	countries=temp_df.index.astype(str).values
+	x=temp_df['x'].values; y=temp_df['y'].values; z=temp_df['z'].values
+
 	z_normalisation = max(z)
+
 	# updating the labels
 	p.title = ("Year=" +str(year.value)+ " -- Spot area ~" + str(indicator_z_select.value)   )
 	p.xaxis.axis_label = str(indicator_x_select.value)
 	p.yaxis.axis_label = str(indicator_y_select.value)
 	
-	countries=pd.concat([indicator_df.loc[Indicator_Code_x,Year_1].CountryName,
-	indicator_df.loc[Indicator_Code_y,Year_1].CountryName,
-	indicator_df.loc[Indicator_Code_z,Year_1].CountryName]).drop_duplicates().astype(str).values
-
 	source.data = dict(
         x=x,
         y=y,
@@ -114,14 +118,14 @@ indicator_df  = indicator_all[indicator_all['IndicatorCode'].str.startswith(defa
 
 print("data loaded")
 
+
 #setting start values
 Indicator_Code_x = 'SH.XPD.PUBL.ZS'  #Mortality rate, infant (per 1,000 live births)
 Indicator_Code_y = 'SH.XPD.PUBL.ZS'	 #Health expenditure, public (% of GDP)
 Indicator_Code_z = 'SH.XPD.PUBL.ZS'  #Birth rate, crude (per 1,000 people)
+Year_init=2010
 
-Year_1=2010
-
-#get IndidcatorCorde and IndicatorName list
+#get IndidcatorCode and IndicatorName list
 indicator_name_df=indicator_df[['IndicatorCode', 'IndicatorName']].set_index('IndicatorName').drop_duplicates('IndicatorCode')
 
 #prepare indicator df
@@ -129,40 +133,16 @@ indicator_df.set_index(['IndicatorCode','Year'], inplace = True)
 indicator_df.drop(['CountryCode'], axis=1, inplace=True)
 indicator_df.dropna(inplace=True)
 
-countries=pd.concat([indicator_df.loc[Indicator_Code_x,Year_1].CountryName,
-	indicator_df.loc[Indicator_Code_y,Year_1].CountryName,
-	indicator_df.loc[Indicator_Code_z,Year_1].CountryName]).drop_duplicates().astype(str).values
 
-x = indicator_df.loc[Indicator_Code_x,Year_1].Value.values
-y = indicator_df.loc[Indicator_Code_y,Year_1].Value.values
-z = indicator_df.loc[Indicator_Code_z,Year_1].Value.values
-
-z_normalisation = max(z)
-
-#pack source data
-source = ColumnDataSource(data=dict(
-            x=x,
-            y=y,
-            countries=countries,
-            z=0.5*z/z_normalisation
-        )
-    )
-
-#create hover tooltips
-hover = HoverTool(
-        tooltips=[
-            ("Country", "@countries"),
-            ('Area', "@z"),
-            ("(x,y)", "(@x, @y)"),
-            ]
-    )
 
 #create figure
+hover = HoverTool( tooltips=[("Country", "@countries"), ('Area', "@z"), ("(x,y)", "(@x, @y)")] )
+source = ColumnDataSource(data=dict(x=[],y=[], countries=[],z=[]))
 p = Figure(tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
+p.scatter('x','y', radius='z', source=source, alpha=.5)
 
-# set title
 p.title = (
-	"Year=" +str(Year_1) # a linebreak would be good here, to fit all in the title
+	"Year=" +str(Year_init) # a linebreak would be good here, to fit all in the title
 	+ " -- Spot area ~" + indicator_df.loc[Indicator_Code_z].IndicatorName.astype(str).values[0]   )
 p.title_text_font_size = '16pt'
 p.title_text_align = 'left' # to ensure the year is displayed even for long names of the z-indicator
@@ -171,32 +151,31 @@ p.title_text_align = 'left' # to ensure the year is displayed even for long name
 p.xaxis.axis_label = indicator_df.loc[Indicator_Code_x].IndicatorName.astype(str).values[0]
 p.yaxis.axis_label = indicator_df.loc[Indicator_Code_y].IndicatorName.astype(str).values[0]
 
-#plot
-p.scatter('x','y', radius='z', source=source, alpha=.5)
-
 # generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
 indicator_options_x = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  #default value is 'SH.XPD' for now
 indicator_options_y = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  #default value is 'SP.DYN' for now
 indicator_options_z = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values) #default value is 'SP.DYN' for now
 
 # Set up widgets
-year = Slider(title="Year", value=Year_1, start= 1990 , end=2015, step=1)
+year = Slider(title="Year", value=Year_init, start= 1990 , end=2015, step=1)
 area = Slider(title="Spot Area", value=0.5, start= 0.05 , end=2.0, step=0.05)
 
-indicator_x_select = Select(value=Indicator_Name_f(Indicator_Code_x), title='Indicator on x-axis', options=sorted(indicator_options_x))
-indicator_y_select = Select(value=Indicator_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y))
-indicator_z_select = Select(value=Indicator_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z))
+indicator_x_select = Select(value=indicator_df.loc[Indicator_Code_x].IndicatorName.astype(str).values[0], title='Indicator on x-axis', options=sorted(indicator_options_x))
+indicator_y_select = Select(value=indicator_df.loc[Indicator_Code_y].IndicatorName.astype(str).values[0], title='Indicator on y-axis', options=sorted(indicator_options_y))
+indicator_z_select = Select(value=indicator_df.loc[Indicator_Code_z].IndicatorName.astype(str).values[0], title='Indicator as spot area', options=sorted(indicator_options_z))
 
 widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area ]
 
-#set updates
+#set updates for plot
 for widget in widget_list:
 	widget.on_change('value', update_data)
 
 
-# Set up layouts and add to document
-inputs = VBoxForm(children=[year,indicator_x_select,indicator_y_select,indicator_z_select,area])
+#initialize plot
+update_data(None,None,None)
 
+# Set up layouts and add to document
+inputs = VBoxForm(children=widget_list)
 curdoc().add_root(HBox(children=[inputs, p]))
 
 
