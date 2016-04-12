@@ -61,21 +61,15 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 	return plt.show()
 
 # Set up callbacks
-def update_title(attrname, old, new):
-	p.title = ("Year=" +str(year.value)
-		+ " -- Spot area ~" + str(indicator_z_select.value)   )
-
-def update_xaxis(attrname, old, new):
-	p.xaxis.axis_label = str(indicator_x_select.value)
-
-def update_yaxis(attrname, old, new):
-	p.yaxis.axis_label = str(indicator_y_select.value)
-
 def update_data(attrname, old, new):	
 	x = indicator_df.loc[indicator_name_df.loc[indicator_x_select.value].values.astype(str)[0],year.value].Value.values
 	y = indicator_df.loc[indicator_name_df.loc[indicator_y_select.value].values.astype(str)[0],year.value].Value.values
 	z = indicator_df.loc[indicator_name_df.loc[indicator_z_select.value].values.astype(str)[0],year.value].Value.values
 	z_normalisation = max(z)
+	# updating the labels
+	p.title = ("Year=" +str(year.value)+ " -- Spot area ~" + str(indicator_z_select.value)   )
+	p.xaxis.axis_label = str(indicator_x_select.value)
+	p.yaxis.axis_label = str(indicator_y_select.value)
 	
 	source.data = dict(
         x=x,
@@ -190,15 +184,11 @@ indicator_x_select = Select(value=Indicator_Name_f(Indicator_Code_x), title='Ind
 indicator_y_select = Select(value=Indicator_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y))
 indicator_z_select = Select(value=Indicator_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z))
 
-#set updates    
-indicator_x_select.on_change('value', update_data)
-indicator_x_select.on_change('value', update_xaxis)
-indicator_y_select.on_change('value', update_data)
-indicator_y_select.on_change('value', update_yaxis)
-indicator_z_select.on_change('value', update_data)
-indicator_z_select.on_change('value', update_title)
-year.on_change('value', update_title)
-year.on_change('value', update_data)
+widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select ]
+
+#set updates
+for widget in widget_list
+	widget.on_change('value', update_data)
 
 
 # Set up layouts and add to document
