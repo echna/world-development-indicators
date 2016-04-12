@@ -90,7 +90,7 @@ elif os.name=='nt':
 if os.path.exists(db_dir+'database.sqlite'):
 	conn = sqlite3.connect(db_dir+'database.sqlite')
 else:
-	print "Databade (SQLite) for world indicators not found"
+	print("Databade (SQLite) for world indicators not found")
 	sys.exit(0)
 
 #unigue first 2 letters of IndicatorCodes
@@ -108,7 +108,7 @@ default_indicator_group='SH'
 indicator_all = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode LIKE @x ", conn,  params={'x': '%'+ default_indicator_group+'%'})
 indicator_df  = indicator_all[indicator_all['IndicatorCode'].str.startswith(default_indicator_group)]
 
-print "data loaded"
+print("data loaded")
 
 #setting start values
 Indicator_Code_x = 'SH.XPD.PUBL.ZS'  #Mortality rate, infant (per 1,000 live births)
@@ -187,7 +187,7 @@ indicator_z_select = Select(value=Indicator_Name_f(Indicator_Code_z), title='Ind
 widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select ]
 
 #set updates
-for widget in widget_list
+for widget in widget_list:
 	widget.on_change('value', update_data)
 
 
