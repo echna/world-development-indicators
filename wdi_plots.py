@@ -24,11 +24,11 @@ from bokeh.io import curdoc
 
 def Indicator_group(str):
 	'''given the start of an IndicatorCode this function returns all IndicatorNames of that subgroup of indicators'''
-	return indicator_df[indicator_df.IndicatorCode.str.contains(str)==True].drop_duplicates('IndicatorName')	
+	return indicator_df.loc[str].drop_duplicates('IndicatorName')	
 	
 def Indicator_Name_f(Indicator_Code):
 	'''generates IndicatorName from Code'''
-	return indicator_df.IndicatorName[indicator_df.IndicatorCode==Indicator_Code].values.astype(str)[0]
+	return indicator_df.loc[Indicator_Code].IndicatorName.values.astype(str)[0]
 
 def axis_values(Indicator_Code, year, countries):
 	"""get values for the Indicators for selected year and countries"""
@@ -96,26 +96,31 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	# indicator_df.drop(['CountryCode','IndicatorName'], axis=1, inplace=True)
 
 	# set index to 'IndicatorCode'
-	indicator_df.set_index('IndicatorCode',drop=False, inplace = True)
 
-	# build x,y,z df for the respective Indicator_Code_* indexed by year
-	x_df = indicator_df.loc[indicator_df.index.isin([Indicator_Code_x])].set_index('Year',drop=True)
-	y_df = indicator_df.loc[indicator_df.index.isin([Indicator_Code_y])].set_index('Year',drop=True)
-	z_df = indicator_df.loc[indicator_df.index.isin([Indicator_Code_z])].set_index('Year',drop=True)
+	indicator_name_df=indicator_df[['IndicatorCode', 'IndicatorName']].set_index('IndicatorName').drop_duplicates('IndicatorCode')
 
-	# concatonate x,y and z data with multi-index as axis,year
-	temp_indicator_df = pd.concat([x_df, y_df, z_df], keys=['x', 'y', 'z'])
-	
-	# defining x and y values
-	temp_data = year_data(Year_1,temp_indicator_df )
-	x,y,z = temp_data['x'].values,temp_data['y'].values,temp_data['z'].values
+	indicator_df.set_index(['IndicatorCode','Year'], inplace = True)
+	indicator_df.drop(['CountryCode'], axis=1, inplace=True)
+
+	query_str=str(
+	"SELECT CountryName FROM Indicators WHERE IndicatorCode=:x AND Year=:n "
+	+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:y AND Year=:n  "
+	+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:z AND Year=:n "
+	)
+
+	countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_1}).astype(str).values[:,0])
+
+	x = indicator_df.loc[Indicator_Code_x,Year_1].Value.values
+	y = indicator_df.loc[Indicator_Code_y,Year_1].Value.values
+	z = indicator_df.loc[Indicator_Code_z,Year_1].Value.values
+
 	z_normalisation = max(z)
 
 	#pack source data
 	source = ColumnDataSource(data=dict(
 	            x=x,
 	            y=y,
-	            countries=temp_data.index,
+	            countries=countries,
 	            z=.5*z/z_normalisation
 	        )
 	    )
@@ -124,7 +129,7 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	hover = HoverTool(
 	        tooltips=[
 	            ("Country", "@countries"),
-	            (str(Indicator_Name_f(Indicator_Code_z)), "@z"),
+	            ('blas', "@z"),
 	            ("(x,y)", "(@x, @y)"),
 	            ]
 	    )
@@ -135,28 +140,28 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	# set title
 	p.title = (
 		"Year=" +str(Year_1) # a linebreak would be good here, to fit all in the title
-		+ " -- Spot area ~" + str(Indicator_Name_f(Indicator_Code_z))   )
-	p.title_text_font_size = '12pt'
+		+ " -- Spot area ~" + indicator_df.loc[Indicator_Code_z].IndicatorName.astype(str).values[0]   )
+	p.title_text_font_size = '16pt'
 	p.title_text_align = 'left' # to ensure the year is displayed even for long names of the z-indicator
 	
 	#set labels
-	p.xaxis.axis_label = str(Indicator_Name_f(Indicator_Code_x))
-	p.yaxis.axis_label = str(Indicator_Name_f(Indicator_Code_y))
+	p.xaxis.axis_label = indicator_df.loc[Indicator_Code_x].IndicatorName.astype(str).values[0]
+	p.yaxis.axis_label = indicator_df.loc[Indicator_Code_y].IndicatorName.astype(str).values[0]
 	
 	#plot
 	p.scatter('x','y', radius='z', source=source, alpha=.5)
 	
 	# generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
 	#print Indicator_group('SH.XPD')
-	indicator_options_x = Indicator_group('.').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SH.XPD' for now
-	indicator_options_y = Indicator_group('.').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SP.DYN' for now
-	indicator_options_z = Indicator_group('.').set_index('IndicatorName')['IndicatorCode'].to_dict()  #default value is 'SP.DYN' for now
-	
+	indicator_options_x = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  #default value is 'SH.XPD' for now
+	indicator_options_y = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  #default value is 'SP.DYN' for now
+	indicator_options_z = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values) #default value is 'SP.DYN' for now
+
 	# Set up widgets
 	year = Slider(title="Year", value=Year_1, start= 1990 , end=2015, step=1)
-	indicator_x_select = Select(value=Indicator_Name_f(Indicator_Code_x), title='Indicator on x-axis', options=sorted(indicator_options_x.keys()))
-	indicator_y_select = Select(value=Indicator_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y.keys()))
-	indicator_z_select = Select(value=Indicator_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z.keys()))
+	indicator_x_select = Select(value=Indicator_Name_f(Indicator_Code_x), title='Indicator on x-axis', options=sorted(indicator_options_x))
+	indicator_y_select = Select(value=Indicator_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y))
+	indicator_z_select = Select(value=Indicator_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z))
 	
 	# Set up callbacks
 	def update_title(attrname, old, new):
@@ -169,49 +174,28 @@ def scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z, Year_1 =
 	def update_yaxis(attrname, old, new):
 		p.yaxis.axis_label = str(indicator_y_select.value)
 	
-	def update_data_year(attrname, old, new):
-		temp_data = year_data(year.value,temp_indicator_df )
-		
-		x,y,z = temp_data['x'].values,temp_data['y'].values,temp_data['z'].values
+	def update_data(attrname, old, new):	
+		x = indicator_df.loc[indicator_name_df.loc[indicator_x_select.value].values.astype(str)[0],year.value].Value.values
+		y = indicator_df.loc[indicator_name_df.loc[indicator_y_select.value].values.astype(str)[0],year.value].Value.values
+		z = indicator_df.loc[indicator_name_df.loc[indicator_z_select.value].values.astype(str)[0],year.value].Value.values
 		z_normalisation = max(z)
 		
 		source.data = dict(
 	        x=x,
 	        y=y,
-	        countries=temp_data.index,
-	        z=.5*z/z_normalisation
-	    )
-	
-	def update_data_indiactor(attrname, old, new):
-		# build x,y,z df for the respective Indicator_Code_* indexed by year
-		x_df = indicator_df.loc[indicator_df['IndicatorName'].isin([indicator_x_select.value])].set_index('Year',drop=True)
-		y_df = indicator_df.loc[indicator_df['IndicatorName'].isin([indicator_y_select.value])].set_index('Year',drop=True)
-		z_df = indicator_df.loc[indicator_df['IndicatorName'].isin([indicator_z_select.value])].set_index('Year',drop=True)
-
-		# concatonate x,y and z data with multi-index as axis,year
-		temp_indicator_df = pd.concat([x_df, y_df, z_df], keys=['x', 'y', 'z'])
-		
-		temp_data = year_data(year.value,temp_indicator_df )
-		
-		x,y,z = temp_data['x'].values,temp_data['y'].values,temp_data['z'].values
-		z_normalisation = max(z)
-		
-		source.data = dict(
-	        x=x,
-	        y=y,
-	        countries=temp_data.index,
+	        countries=countries,
 	        z=.5*z/z_normalisation
 	    )
 	
 	#set updates    
-	indicator_x_select.on_change('value', update_data_indiactor)
+	indicator_x_select.on_change('value', update_data)
 	indicator_x_select.on_change('value', update_xaxis)
-	indicator_y_select.on_change('value', update_data_indiactor)
+	indicator_y_select.on_change('value', update_data)
 	indicator_y_select.on_change('value', update_yaxis)
-	indicator_z_select.on_change('value', update_data_indiactor)
+	indicator_z_select.on_change('value', update_data)
 	indicator_z_select.on_change('value', update_title)
 	year.on_change('value', update_title)
-	year.on_change('value', update_data_year)
+	year.on_change('value', update_data)
 
 
 	# Set up layouts and add to document
@@ -231,22 +215,21 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 			plt.plot(time_and_values(Country_Name,Indicator_Code))
 	#plots for a bunch of countries for just one indicator
 	return plt.show()
-
-
 	
 # ******  Main  ******
 
-#get base directory and OS
-orig_dir = os.getcwd()
-
 #select correct path depending on OS
 if os.name =='posix':
-	os.chdir(orig_dir +'/world-development-indicators-data')
+	db_dir='./world-development-indicators-data/'
 elif os.name=='nt':
-	os.chdir(orig_dir +'\world-development-indicators-data')
+	db_dir='.\world-development-indicators-data'+ "\\"
 
-#load data
-conn = sqlite3.connect('database.sqlite')
+#load data if db exists
+if os.path.exists(db_dir+'database.sqlite'):
+	conn = sqlite3.connect(db_dir+'database.sqlite')
+else:
+	print "Databade (SQLite) for world indicators not found"
+	sys.exit(0)
 
 #codes = pd.read_sql_query("SELECT IndicatorCode FROM Indicators ",conn).values[:,0]
 #codes_unique = np.unique([str(i[:2]) for i in codes])
@@ -266,7 +249,7 @@ indicator_df = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode i
 
 # indicator_df = Indicator_group('SH')
 
-# indicator_df = pd.read_sql_query("SELECT * FROM Indicators",  conn)
+indicator_df = pd.read_sql_query("SELECT * FROM Indicators",  conn)
 
 Indicator_Code_x = 'SH.XPD.PUBL.ZS'  #Mortality rate, infant (per 1,000 live births)
 Indicator_Code_y = 'SP.DYN.IMRT.IN'	 #Health expenditure, public (% of GDP)
@@ -277,5 +260,3 @@ Year_1=2010
 scatter_plot2(Indicator_Code_x ,Indicator_Code_y ,Indicator_Code_z,Year_1)
 
 
-
-os.chdir(orig_dir)
