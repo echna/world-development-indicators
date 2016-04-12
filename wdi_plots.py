@@ -76,12 +76,16 @@ def update_data(attrname, old, new):
 	y = indicator_df.loc[indicator_name_df.loc[indicator_y_select.value].values.astype(str)[0],year.value].Value.values
 	z = indicator_df.loc[indicator_name_df.loc[indicator_z_select.value].values.astype(str)[0],year.value].Value.values
 	z_normalisation = max(z)
-	
+
+	countries=pd.concat([indicator_df.loc[Indicator_Code_x,Year_1].CountryName,
+	indicator_df.loc[Indicator_Code_y,Year_1].CountryName,
+	indicator_df.loc[Indicator_Code_z,Year_1].CountryName]).drop_duplicates().astype(str).values
+
 	source.data = dict(
         x=x,
         y=y,
         countries=countries,
-        z=.5*z/z_normalisation
+        z=area.value*z/z_normalisation
     )
 	
 # ******  Main  ******
@@ -123,20 +127,17 @@ Indicator_Code_z = 'SH.XPD.PUBL.ZS'  #Birth rate, crude (per 1,000 people)
 
 Year_1=2010
 
+#get IndidcatorCorde and IndicatorName list
 indicator_name_df=indicator_df[['IndicatorCode', 'IndicatorName']].set_index('IndicatorName').drop_duplicates('IndicatorCode')
 
+#prepare indicator df.
 indicator_df.set_index(['IndicatorCode','Year'], inplace = True)
 indicator_df.drop(['CountryCode'], axis=1, inplace=True)
 indicator_df.dropna(inplace=True)
 
-query_str=str(
-"SELECT CountryName FROM Indicators WHERE IndicatorCode=:x AND Year=:n "
-+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:y AND Year=:n  "
-+"UNION SELECT CountryName FROM Indicators WHERE IndicatorCode=:z AND Year=:n "
-)
-
-countries= tuple(pd.read_sql_query( query_str,conn, params={'x': Indicator_Code_x,'y': Indicator_Code_y,'z': Indicator_Code_z, 'n': Year_1}).astype(str).values[:,0])
-
+countries=pd.concat([indicator_df.loc[Indicator_Code_x,Year_1].CountryName,
+	indicator_df.loc[Indicator_Code_y,Year_1].CountryName,
+	indicator_df.loc[Indicator_Code_z,Year_1].CountryName]).drop_duplicates().astype(str).values
 
 x = indicator_df.loc[Indicator_Code_x,Year_1].Value.values
 y = indicator_df.loc[Indicator_Code_y,Year_1].Value.values
@@ -149,7 +150,7 @@ source = ColumnDataSource(data=dict(
             x=x,
             y=y,
             countries=countries,
-            z=.5*z/z_normalisation
+            z=0.5*z/z_normalisation
         )
     )
 
@@ -157,7 +158,7 @@ source = ColumnDataSource(data=dict(
 hover = HoverTool(
         tooltips=[
             ("Country", "@countries"),
-            ('blas', "@z"),
+            ('Area', "@z"),
             ("(x,y)", "(@x, @y)"),
             ]
     )
@@ -186,6 +187,8 @@ indicator_options_z = tuple(indicator_df.drop_duplicates('IndicatorName').Indica
 
 # Set up widgets
 year = Slider(title="Year", value=Year_1, start= 1990 , end=2015, step=1)
+area = Slider(title="Spot Area", value=0.5, start= 0.05 , end=2.0, step=0.05)
+
 indicator_x_select = Select(value=Indicator_Name_f(Indicator_Code_x), title='Indicator on x-axis', options=sorted(indicator_options_x))
 indicator_y_select = Select(value=Indicator_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y))
 indicator_z_select = Select(value=Indicator_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z))
@@ -199,10 +202,10 @@ indicator_z_select.on_change('value', update_data)
 indicator_z_select.on_change('value', update_title)
 year.on_change('value', update_title)
 year.on_change('value', update_data)
-
+area.on_change('value', update_data)
 
 # Set up layouts and add to document
-inputs = VBoxForm(children=[year,indicator_x_select,indicator_y_select,indicator_z_select])
+inputs = VBoxForm(children=[year,indicator_x_select,indicator_y_select,indicator_z_select,area])
 
 curdoc().add_root(HBox(children=[inputs, p]))
 
