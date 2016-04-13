@@ -26,10 +26,14 @@ def Indicator_group(str):
 	'''given the start of an IndicatorCode this function returns all IndicatorNames of that subgroup of indicators'''
 	return indicator_df.loc[str].drop_duplicates('IndicatorName')	
 	
-def Indicator_Name_f(Indicator_Code):
+def Ind_Name_f(Indicator_Code):
 	'''generates IndicatorName from Code'''
-	return indicator_df.loc[Indicator_Code].IndicatorName.values.astype(str)[0]
-
+	return indicator_name_df.reset_index().set_index('IndicatorCode').loc[Indicator_Code].values.astype(str)[0]
+	
+def Ind_Code_f(Indicator_Name):
+	'''returns IndicatorCode from Name'''
+	return indicator_name_df.loc[Indicator_Name].values.astype(str)[0]
+	
 def axis_values(Indicator_Code, year, countries):
 	"""get values for the Indicators for selected year and countries"""
 	return indicator_df.Value[(indicator_df.IndicatorCode==Indicator_Code) & (indicator_df.Year==year) & (indicator_df.CountryName.isin(countries)) ]
@@ -60,18 +64,29 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 	#plots for a bunch of countries for just one indicator
 	return plt.show()
 
+
 # Set up callbacks
 def update_data(attrname, old, new):	
 	#reshape df
 	temp_df=pd.concat(
-		[indicator_df.loc[indicator_name_df.loc[indicator_x_select.value].values.astype(str)[0],year.value].set_index('CountryName').rename(columns={"Value": "x"}),
-		indicator_df.loc[indicator_name_df.loc[indicator_y_select.value].values.astype(str)[0],year.value].set_index('CountryName').rename(columns={"Value": "y"}),
-		indicator_df.loc[indicator_name_df.loc[indicator_z_select.value].values.astype(str)[0],year.value].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()
-
+		[indicator_df.loc[Ind_Code_f(indicator_x_select.value),year.value].set_index('CountryName').rename(columns={"Value": "x"}),
+		indicator_df.loc[Ind_Code_f(indicator_y_select.value),year.value].set_index('CountryName').rename(columns={"Value": "y"}),
+		indicator_df.loc[Ind_Code_f(indicator_z_select.value),year.value].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()
+	#reshape df for traces
+	temp_df_2 = pd.concat([
+		indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
+		indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"})], axis = 1).dropna()
+	temp_df_2.reset_index(inplace = True)
+	temp_df_2.drop(['IndicatorName'], axis = 1, inplace = True)
+	temp_df_2.set_index('CountryName',inplace = True)
+	
 	#get countries 
 	countries=temp_df.index.astype(str).values
 	x=temp_df['x'].values; y=temp_df['y'].values; z=temp_df['z'].values
 
+	x_trace = temp_df_2.loc[trace_country_select.value]['x'].values
+	y_trace = temp_df_2.loc[trace_country_select.value]['y'].values
+	
 	z_normalisation = max(z)
 
 	# updating the labels
@@ -82,6 +97,8 @@ def update_data(attrname, old, new):
 	source.data = dict(
         x=x,
         y=y,
+		x_trace = x_trace,
+		y_trace = y_trace,
         countries=countries,
         z=area.value*z/z_normalisation
     )
@@ -110,7 +127,7 @@ codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', '
       dtype='|S2')
 
 #load all data
-default_indicator_group='SH'
+default_indicator_group='SP'
 #indicator_all = pd.read_sql_query("SELECT * FROM Indicators",  conn)
 #debugging set
 indicator_all = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode LIKE @x ", conn,  params={'x': '%'+ default_indicator_group+'%'})
@@ -120,26 +137,26 @@ print("data loaded")
 
 
 #setting start values
-Indicator_Code_x = 'SH.XPD.PUBL.ZS'  #Mortality rate, infant (per 1,000 live births)
-Indicator_Code_y = 'SH.XPD.PUBL.ZS'	 #Health expenditure, public (% of GDP)
-Indicator_Code_z = 'SH.XPD.PUBL.ZS'  #Birth rate, crude (per 1,000 people)
+Indicator_Code_x = 'SP.DYN.CBRT.IN'
+Indicator_Code_y = 'SP.DYN.IMRT.IN'	 
+Indicator_Code_z = 'SP.URB.TOTL.IN.ZS' 
 Year_init=2010
+trace_country  = 'Swaziland'
 
 #get IndidcatorCode and IndicatorName list
 indicator_name_df=indicator_df[['IndicatorCode', 'IndicatorName']].set_index('IndicatorName').drop_duplicates('IndicatorCode')
 
 #prepare indicator df
-indicator_df.set_index(['IndicatorCode','Year'], inplace = True)
+indicator_df.set_index(['IndicatorCode','Year'], inplace = True, drop = True)
 indicator_df.drop(['CountryCode'], axis=1, inplace=True)
 indicator_df.dropna(inplace=True)
 
-
-
 #create figure
 hover = HoverTool( tooltips=[("Country", "@countries"), ('Area', "@z"), ("(x,y)", "(@x, @y)")] )
-source = ColumnDataSource(data=dict(x=[],y=[], countries=[],z=[]))
+source = ColumnDataSource(data=dict(x=[],y=[],x_trace = [],y_trace = [], countries=[],z=[]))
 p = Figure(tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
 p.scatter('x','y', radius='z', source=source, alpha=.5)
+p.line('x_trace','y_trace', source = source, line_width=3,line_alpha=0.6,line_color = 'red')
 
 p.title = (
 	"Year=" +str(Year_init) # a linebreak would be good here, to fit all in the title
@@ -152,19 +169,21 @@ p.xaxis.axis_label = indicator_df.loc[Indicator_Code_x].IndicatorName.astype(str
 p.yaxis.axis_label = indicator_df.loc[Indicator_Code_y].IndicatorName.astype(str).values[0]
 
 # generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
-indicator_options_x = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  #default value is 'SH.XPD' for now
-indicator_options_y = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  #default value is 'SP.DYN' for now
-indicator_options_z = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values) #default value is 'SP.DYN' for now
+indicator_options_x = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
+indicator_options_y = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
+indicator_options_z = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values) 
+country_options = tuple(indicator_df.drop_duplicates('CountryName').CountryName.values.astype(str))
+
 
 # Set up widgets
-year = Slider(title="Year", value=Year_init, start= 1990 , end=2015, step=1)
+year = Slider(title="Year", value=Year_init, start= 1960 , end=2015, step=1)
 area = Slider(title="Spot Area", value=0.5, start= 0.05 , end=2.0, step=0.05)
+indicator_x_select = Select(value=Ind_Name_f(Indicator_Code_x), title='Indicator on x-axis', options=sorted(indicator_options_x))
+indicator_y_select = Select(value=Ind_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y))
+indicator_z_select = Select(value=Ind_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z))
+trace_country_select = Select(value=trace_country, title='Country to be traced', options=sorted(country_options))
 
-indicator_x_select = Select(value=indicator_df.loc[Indicator_Code_x].IndicatorName.astype(str).values[0], title='Indicator on x-axis', options=sorted(indicator_options_x))
-indicator_y_select = Select(value=indicator_df.loc[Indicator_Code_y].IndicatorName.astype(str).values[0], title='Indicator on y-axis', options=sorted(indicator_options_y))
-indicator_z_select = Select(value=indicator_df.loc[Indicator_Code_z].IndicatorName.astype(str).values[0], title='Indicator as spot area', options=sorted(indicator_options_z))
-
-widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area ]
+widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area,trace_country_select]
 
 #set updates for plot
 for widget in widget_list:
