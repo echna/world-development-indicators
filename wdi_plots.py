@@ -77,11 +77,11 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 # Set up callbacks
 def update_group(attrname, old, new):
 	"""update dataframe for selected inidcator group"""	
-	update_data.indicator_df, update_data.indicator_name_df=load_Indicator(indicator_all,indicator_group_select.value)
+	update_plot.indicator_df, update_plot.indicator_name_df=load_Indicator(indicator_all,indicator_group_select.value)
 	
-	print indicator_group_select.value +" loaded"
+	print(indicator_group_select.value +" loaded")
 
-	indicator_options_x = tuple(update_data.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
+	indicator_options_x = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
 	indicator_x_select.options=sorted(indicator_options_x)
 	indicator_y_select.options=sorted(indicator_options_x)
 	indicator_z_select.options=sorted(indicator_options_x)
@@ -90,63 +90,54 @@ def update_group(attrname, old, new):
 	indicator_y_select.value=indicator_x_select.options[1]
 	indicator_z_select.value=indicator_x_select.options[2]
 
+def update_ind_data(attrname, old, new):
+	"""update data for plot"""	
+	#reshape df
+	try:
+		update_plot.temp_ind_df=pd.concat(
+		[update_plot.indicator_df.loc[Ind_Code_f(indicator_x_select.value),year.value].set_index('CountryName').rename(columns={"Value": "x"}),
+		update_plot.indicator_df.loc[Ind_Code_f(indicator_y_select.value),year.value].set_index('CountryName').rename(columns={"Value": "y"}),
+		update_plot.indicator_df.loc[Ind_Code_f(indicator_z_select.value),year.value].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()
+
+	except KeyError as e:
+		print( "Error: %s" % e )
+	
 def update_year(attrname, old, new):
 	"""update year of plot"""	
 	#reshape df
-	temp_df=pd.concat(
-	[update_data.indicator_df.loc[Ind_Code_f(indicator_x_select.value),year.value].set_index('CountryName').rename(columns={"Value": "x"}),
-	update_data.indicator_df.loc[Ind_Code_f(indicator_y_select.value),year.value].set_index('CountryName').rename(columns={"Value": "y"}),
-	update_data.indicator_df.loc[Ind_Code_f(indicator_z_select.value),year.value].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()
-#reshape df for traces
+	update_plot.temp_ind_dftemp_df=pd.concat(
+	[update_plot.indicator_df.loc[Ind_Code_f(indicator_x_select.value),year.value].set_index('CountryName').rename(columns={"Value": "x"}),
+	update_plot.indicator_df.loc[Ind_Code_f(indicator_y_select.value),year.value].set_index('CountryName').rename(columns={"Value": "y"}),
+	update_plot.indicator_df.loc[Ind_Code_f(indicator_z_select.value),year.value].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()
 	
-	#get countries 
-	countries=temp_df.index.astype(str).values
-	x=temp_df['x'].values; y=temp_df['y'].values; z=temp_df['z'].values
-	z_normalisation = max(z)
+	update_plot(None, None, None)
 
-	# updating the labels
-	p.title = ("Year=" +str(year.value)+ " -- Spot area ~" + str(indicator_z_select.value)   )
-	p.xaxis.axis_label = str(indicator_x_select.value)
-	p.yaxis.axis_label = str(indicator_y_select.value)
-	
-	source.data = dict(
-        x=x,
-        y=y,
-		x_trace = update_data.x_trace,
-		y_trace = update_data.y_trace,
-        countries=countries,
-        z=area.value*z/z_normalisation
-    )
-
-def update_trace(attrname, old, new):
+def update_trace_data(attrname, old, new):
 	"""update trace for plot and calls update data"""
-	temp_df_2 = pd.concat([
-	update_data.indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
-	update_data.indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"})], axis = 1).dropna()
+	temp_trace_df = pd.concat([
+	update_plot.indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
+	update_plot.indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"})], axis = 1).dropna()
 
 	temp_df_2.reset_index(inplace = True)
 	temp_df_2.drop(['IndicatorName'], axis = 1, inplace = True)
 	temp_df_2.set_index('CountryName',inplace = True)
 
-	update_data.x_trace = temp_df_2.loc[trace_country_select.value]['x'].values
-	update_data.y_trace = temp_df_2.loc[trace_country_select.value]['y'].values
+	update_plot.x_trace = temp_df_2.loc[trace_country_select.value]['x'].values
+	update_plot.y_trace = temp_df_2.loc[trace_country_select.value]['y'].values
 
-	update_data(None,None,None)
+	update_plot(None,None,None)
 
-def update_data(attrname, old, new):
-	"""update data for plot"""	
-	#reshape df
-	try:
-		temp_df=pd.concat(
-		[update_data.indicator_df.loc[Ind_Code_f(indicator_x_select.value),year.value].set_index('CountryName').rename(columns={"Value": "x"}),
-		update_data.indicator_df.loc[Ind_Code_f(indicator_y_select.value),year.value].set_index('CountryName').rename(columns={"Value": "y"}),
-		update_data.indicator_df.loc[Ind_Code_f(indicator_z_select.value),year.value].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()
-	#reshape df for traces
+
+
 		
+def update_plot(attrname, old, new):
+	"""update data for plot"""	
+	try:
+
 		#get countries 
-		countries=temp_df.index.astype(str).values
+		countries=update_data.temp_ind_df.index.astype(str).values
 		trace_country_select.options=sorted(countries)			#update countries selector
-		x=temp_df['x'].values; y=temp_df['y'].values; z=temp_df['z'].values
+		x=update_data.temp_ind_df['x'].values; y=update_data.temp_ind_df['y'].values; z=update_data.temp_ind_df['z'].values
 		z_normalisation = max(z)
 
 		# updating the labels
@@ -165,7 +156,6 @@ def update_data(attrname, old, new):
 
 	except KeyError as e:
 		print( "Error: %s" % e )
-
 	
 # ******  Main  ******
 
@@ -194,9 +184,9 @@ codes_unique_df=pd.DataFrame(codes_unique, columns=[ 'Group'])
 
 #load all data
 default_indicator_group='SP'
-indicator_all = pd.read_sql_query("SELECT * FROM Indicators",  conn)
+# indicator_all = pd.read_sql_query("SELECT * FROM Indicators",  conn)
 #debugging set
-#indicator_all = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode LIKE @x ", conn,  params={'x': '%'+ 'SP'+'%'})
+indicator_all = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode LIKE @x ", conn,  params={default_indicator_group+'%'})
 update_data.indicator_df, update_data.indicator_name_df =load_Indicator(indicator_all, default_indicator_group)
 
 print("data loaded")
