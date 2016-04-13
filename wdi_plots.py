@@ -105,41 +105,42 @@ def update_ind_data(attrname, old, new):
 	update_year(None, None, None)
 	update_trace_data(None, None, None)
 	update_plot(None, None, None)
-
 	
 def update_year(attrname, old, new):
 	"""update year of data"""	
 	#select subset of update_plot.temp_ind_df depending on the selected year
-	update_plot.temp_ind_df_2 = update_plot.temp_ind_df.loc[year.value]
-
+	try:
+		update_plot.temp_ind_df_2 = update_plot.temp_ind_df.loc[year.value]
+	except KeyError as e:
+		print( "Error: %s" % e )
 
 def update_trace_data(attrname, old, new):
-	"""update trace for plot and calls update data"""
-	update_plot.temp_trace_df = pd.concat([
-	update_plot.indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
-	update_plot.indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"})], axis = 1).dropna()
+	try:
+		"""update trace for plot and calls update data"""
+		update_plot.temp_trace_df = pd.concat([
+		update_plot.indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
+		update_plot.indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"})], axis = 1).dropna()
 
-	update_plot.temp_trace_df.reset_index(inplace = True)
-	update_plot.temp_trace_df.drop(['IndicatorName'], axis = 1, inplace = True)
-	update_plot.temp_trace_df.set_index('CountryName',inplace = True)
-
-
-	
+		update_plot.temp_trace_df.reset_index(inplace = True)
+		update_plot.temp_trace_df.drop(['IndicatorName'], axis = 1, inplace = True)
+		update_plot.temp_trace_df.set_index('CountryName',inplace = True)
+	except KeyError as e:
+		print( "Error: %s" % e )
+		
 def update_plot(attrname, old, new):
 	"""update data for plot"""	
 	try:
-		
 		#get countries 
 		countries=update_plot.temp_ind_df_2.index.values.astype(str)
 		trace_country_select.options=sorted(countries)			#update countries selector
 		x=update_plot.temp_ind_df_2['x'].values; y=update_plot.temp_ind_df_2['y'].values; z=update_plot.temp_ind_df_2['z'].values
-		z_normalisation = max(z)
+		z_normalisation = max([update_plot.temp_ind_df['z'].max(), 1])
 
 		# updating the labels
 		p.title = ("Year=" +str(year.value)+ " -- Spot area ~" + str(indicator_z_select.value)   )
 		p.xaxis.axis_label = str(indicator_x_select.value)
 		p.yaxis.axis_label = str(indicator_y_select.value)
-		
+		# this does work, but only with a trick. after loading the graph, move it around with the pan tool, then switch pan off andchange the year, voila
 		p.x_range.start = .5*update_plot.temp_ind_df['x'].min()
 		p.x_range.end = 1.1*update_plot.temp_ind_df['x'].max()
 		p.y_range.start = .5*update_plot.temp_ind_df['y'].min()
@@ -206,7 +207,7 @@ hover = HoverTool( tooltips=[("Country", "@countries"), ('Area', "@z"), ("(x,y)"
 source = ColumnDataSource(data=dict(x=[], y=[], x_trace=[], y_trace=[],countries=[],z=[]))
 p = Figure(tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
 p.scatter('x','y', radius='z', source=source, alpha=.5)
-p.line('x_trace','y_trace', source = source, line_width=3,line_alpha=0.6,line_color = 'red')
+p.line('x_trace','y_trace', source = source, line_width=3,line_alpha=0.4,line_color = 'red')
 
 p.title = (
 	"Year=" +str(Year_init) # a linebreak would be good here, to fit all in the title
