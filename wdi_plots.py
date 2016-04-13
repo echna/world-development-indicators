@@ -90,6 +90,49 @@ def update_group(attrname, old, new):
 	indicator_y_select.value=indicator_x_select.options[1]
 	indicator_z_select.value=indicator_x_select.options[2]
 
+def update_year(attrname, old, new):
+	"""update year of plot"""	
+	#reshape df
+	temp_df=pd.concat(
+	[update_data.indicator_df.loc[Ind_Code_f(indicator_x_select.value),year.value].set_index('CountryName').rename(columns={"Value": "x"}),
+	update_data.indicator_df.loc[Ind_Code_f(indicator_y_select.value),year.value].set_index('CountryName').rename(columns={"Value": "y"}),
+	update_data.indicator_df.loc[Ind_Code_f(indicator_z_select.value),year.value].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()
+#reshape df for traces
+	
+	#get countries 
+	countries=temp_df.index.astype(str).values
+	x=temp_df['x'].values; y=temp_df['y'].values; z=temp_df['z'].values
+	z_normalisation = max(z)
+
+	# updating the labels
+	p.title = ("Year=" +str(year.value)+ " -- Spot area ~" + str(indicator_z_select.value)   )
+	p.xaxis.axis_label = str(indicator_x_select.value)
+	p.yaxis.axis_label = str(indicator_y_select.value)
+	
+	source.data = dict(
+        x=x,
+        y=y,
+		x_trace = update_data.x_trace,
+		y_trace = update_data.y_trace,
+        countries=countries,
+        z=area.value*z/z_normalisation
+    )
+
+def update_trace(attrname, old, new):
+	"""update trace for plot and calls update data"""
+	temp_df_2 = pd.concat([
+	update_data.indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
+	update_data.indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"})], axis = 1).dropna()
+
+	temp_df_2.reset_index(inplace = True)
+	temp_df_2.drop(['IndicatorName'], axis = 1, inplace = True)
+	temp_df_2.set_index('CountryName',inplace = True)
+
+	update_data.x_trace = temp_df_2.loc[trace_country_select.value]['x'].values
+	update_data.y_trace = temp_df_2.loc[trace_country_select.value]['y'].values
+
+	update_data(None,None,None)
+
 def update_data(attrname, old, new):
 	"""update data for plot"""	
 	#reshape df
@@ -99,21 +142,11 @@ def update_data(attrname, old, new):
 		update_data.indicator_df.loc[Ind_Code_f(indicator_y_select.value),year.value].set_index('CountryName').rename(columns={"Value": "y"}),
 		update_data.indicator_df.loc[Ind_Code_f(indicator_z_select.value),year.value].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()
 	#reshape df for traces
-		temp_df_2 = pd.concat([
-		update_data.indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
-		update_data.indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"})], axis = 1).dropna()
-
-		temp_df_2.reset_index(inplace = True)
-		temp_df_2.drop(['IndicatorName'], axis = 1, inplace = True)
-		temp_df_2.set_index('CountryName',inplace = True)
 		
 		#get countries 
 		countries=temp_df.index.astype(str).values
+		trace_country_select.options=sorted(countries)			#update countries selector
 		x=temp_df['x'].values; y=temp_df['y'].values; z=temp_df['z'].values
-
-		x_trace = temp_df_2.loc[trace_country_select.value]['x'].values
-		y_trace = temp_df_2.loc[trace_country_select.value]['y'].values
-		
 		z_normalisation = max(z)
 
 		# updating the labels
@@ -124,14 +157,15 @@ def update_data(attrname, old, new):
 		source.data = dict(
 	        x=x,
 	        y=y,
-			x_trace = x_trace,
-			y_trace = y_trace,
+			x_trace = update_data.x_trace,
+			y_trace = update_data.y_trace,
 	        countries=countries,
 	        z=area.value*z/z_normalisation
 	    )
 
 	except KeyError as e:
 		print( "Error: %s" % e )
+
 	
 # ******  Main  ******
 
@@ -162,7 +196,7 @@ codes_unique_df=pd.DataFrame(codes_unique, columns=[ 'Group'])
 default_indicator_group='SP'
 indicator_all = pd.read_sql_query("SELECT * FROM Indicators",  conn)
 #debugging set
-#indicator_all = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode LIKE @x ", conn,  params={'x': '%'+ 'S'+'%'})
+#indicator_all = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode LIKE @x ", conn,  params={'x': '%'+ 'SP'+'%'})
 update_data.indicator_df, update_data.indicator_name_df =load_Indicator(indicator_all, default_indicator_group)
 
 print("data loaded")
@@ -174,10 +208,9 @@ Indicator_Code_z = 'SP.URB.TOTL.IN.ZS'
 Year_init=2010
 trace_country  = 'Swaziland'
 
-
 #create figure
 hover = HoverTool( tooltips=[("Country", "@countries"), ('Area', "@z"), ("(x,y)", "(@x, @y)")] )
-source = ColumnDataSource(data=dict(x=[],y=[],x_trace = [],y_trace = [], countries=[],z=[]))
+source = ColumnDataSource(data=dict(x=[], y=[], x_trace=[], y_trace=[],countries=[],z=[]))
 p = Figure(tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
 p.scatter('x','y', radius='z', source=source, alpha=.5)
 p.line('x_trace','y_trace', source = source, line_width=3,line_alpha=0.6,line_color = 'red')
@@ -191,7 +224,6 @@ p.title_text_align = 'left' # to ensure the year is displayed even for long name
 #set labels
 p.xaxis.axis_label = update_data.indicator_df.loc[Indicator_Code_x].IndicatorName.astype(str).values[0]
 p.yaxis.axis_label = update_data.indicator_df.loc[Indicator_Code_y].IndicatorName.astype(str).values[0]
-
 
 # generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
 indicator_options_x = tuple(update_data.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
@@ -213,14 +245,16 @@ trace_country_select = Select(value=trace_country, title='Country to be traced',
 widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, trace_country_select]
 
 #set updates for plot
-for widget in widget_list:
-	widget.on_change('value', update_data)
-
+for widget in [indicator_x_select,indicator_y_select,indicator_z_select]:
+	widget.on_change('value', update_trace)
+area.on_change('value', update_year)
+year.on_change('value', update_year)
+trace_country_select.on_change('value', update_trace)
 indicator_group_select.on_change('value',update_group)
 
 #initialize plot
-update_data(None,None,None)
-
+update_data.x_trace=[];update_data.x_trace=[];
+update_trace(None,None,None)
 
 # Set up layouts and add to document
 inputs = VBoxForm(children=widget_list)
