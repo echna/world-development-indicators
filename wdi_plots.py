@@ -66,7 +66,29 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 
 
 # Set up callbacks
-def update_data(attrname, old, new):	
+def update_group(attrname, old, new):
+	"""update dataframe for selected inidcator group"""	
+	indicator_df=indicator_all[indicator_all['IndicatorCode'].str.startswith(indicator_group_select.value)]
+	print indicator_group_select.value +" loaded"
+
+	indicator_options_x = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
+
+	indicator_x_select.options=sorted(indicator_options_x)
+	indicator_y_select.options=sorted(indicator_options_x)
+	indicator_z_select.options=sorted(indicator_options_x)
+
+	print indicator_x_select.options[0].values
+	indicator_x_select.value=str(indicator_x_select.options[0].values)
+	indicator_y_select.value=str(indicator_x_select.options[1])
+	indicator_z_select.value=str(indicator_x_select.options[2])
+
+	update_data.indicator_df=indicator_df
+	
+
+
+def update_data(attrname, old, new):
+	"""update data for plot"""	
+	
 	#reshape df
 	temp_df=pd.concat(
 		[indicator_df.loc[Ind_Code_f(indicator_x_select.value),year.value].set_index('CountryName').rename(columns={"Value": "x"}),
@@ -126,6 +148,8 @@ codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', '
        'TG', 'TM', 'TT', 'TX', 'VC', 'pe'],
       dtype='|S2')
 
+codes_unique_df=pd.DataFrame(codes_unique, columns=[ 'Group'])
+
 #load all data
 default_indicator_group='SP'
 #indicator_all = pd.read_sql_query("SELECT * FROM Indicators",  conn)
@@ -151,6 +175,8 @@ indicator_df.set_index(['IndicatorCode','Year'], inplace = True, drop = True)
 indicator_df.drop(['CountryCode'], axis=1, inplace=True)
 indicator_df.dropna(inplace=True)
 
+
+
 #create figure
 hover = HoverTool( tooltips=[("Country", "@countries"), ('Area', "@z"), ("(x,y)", "(@x, @y)")] )
 source = ColumnDataSource(data=dict(x=[],y=[],x_trace = [],y_trace = [], countries=[],z=[]))
@@ -168,11 +194,13 @@ p.title_text_align = 'left' # to ensure the year is displayed even for long name
 p.xaxis.axis_label = indicator_df.loc[Indicator_Code_x].IndicatorName.astype(str).values[0]
 p.yaxis.axis_label = indicator_df.loc[Indicator_Code_y].IndicatorName.astype(str).values[0]
 
+
 # generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
 indicator_options_x = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
 indicator_options_y = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
 indicator_options_z = tuple(indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values) 
 country_options = tuple(indicator_df.drop_duplicates('CountryName').CountryName.values.astype(str))
+indicator_group_options = codes_unique_df['Group'].values.astype(str)
 
 
 # Set up widgets
@@ -189,6 +217,7 @@ widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,are
 for widget in widget_list:
 	widget.on_change('value', update_data)
 
+indicator_group_select.on_change('value',update_group)
 
 #initialize plot
 update_data(None,None,None)
