@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 from bokeh.plotting import Figure, show, output_file, ColumnDataSource
 from bokeh.models import HoverTool, ColumnDataSource, HBox, VBoxForm, Select
-from bokeh.models.widgets import Slider
+from bokeh.models.widgets import Slider, Toggle, TextInput
 from bokeh.io import curdoc
 
 	
@@ -98,14 +98,17 @@ def update_trace(attrname, old, new):
 	temp_df.drop(['IndicatorName'], axis = 1, inplace = True)
 	temp_df.set_index('CountryName',inplace = True)
 
-	update_plot.x_trace = temp_df.loc[trace_country_select.value]['x'].values
-	update_plot.y_trace = temp_df.loc[trace_country_select.value]['y'].values
+	if trace_toggle.active==True:
+		update_plot.x_trace = temp_df.loc[trace_country_select.value]['x'].values
+		update_plot.y_trace = temp_df.loc[trace_country_select.value]['y'].values
+	else:
+		update_plot.x_trace = []
+		update_plot.y_trace = []
 
 	update_plot(None,None,None)
 
 def update_indicator(attrname, old, new):
 	"""update indicator data for plot and calls update plot"""	
-
 	try:
 		temp_df=pd.concat(
 		[update_plot.indicator_df.loc[Ind_Code_f(indicator_x_select.value),year.value].set_index('CountryName').rename(columns={"Value": "x"}),
@@ -124,13 +127,18 @@ def update_indicator(attrname, old, new):
 	#set labels
 	p.xaxis.axis_label = str(indicator_x_select.value)
 	p.yaxis.axis_label = str(indicator_y_select.value)
-	p.title = ("Year=" +str(year.value)+ " -- Spot area ~" + str(indicator_z_select.value))
 
 	update_plot.countries=tuple(temp_ind_df.index.drop_duplicates().astype(str).values)
 	trace_country_select.options=sorted(update_plot.countries)			#update countries selector
 
-	update_plot.x=temp_df['x'].values; update_plot.y=temp_df['y'].values; update_plot.z=temp_df['z'].values
-	update_plot.z_normalisation = max(update_plot.z)
+	update_plot.x=temp_df['x'].values; update_plot.y=temp_df['y'].values
+	#check for Z-toggle
+	if z_toggle.active==True:
+		update_plot.z=temp_df['z'].values; update_plot.z_normalisation = max(update_plot.z)
+		p.title = ("Year=" +str(year.value)+ " -- Spot area ~" + str(indicator_z_select.value))
+	else:
+		update_plot.z=np.ones(np.size(update_plot.x)); update_plot.z_normalisation = 1
+		p.title = ("Year=" +str(year.value))
 
 	#set max range
 	p.x_range.start = .5*temp_ind_df['x'].min()
@@ -150,11 +158,14 @@ def update_year(attrname, old, new):
 	update_plot.indicator_df.loc[Ind_Code_f(indicator_z_select.value),year.value].set_index('CountryName').rename(columns={"Value": "z"})], axis = 1).dropna()
 	
 	#get countries 
-	update_plot.x=temp_df['x'].values; update_plot.y=temp_df['y'].values; update_plot.z=temp_df['z'].values
-	update_plot.z_normalisation = max(update_plot.z)
-
-	# updating the labels
-	p.title = ("Year=" +str(year.value)+ " -- Spot area ~" + str(indicator_z_select.value)   )
+	update_plot.x=temp_df['x'].values; update_plot.y=temp_df['y'].values
+	#check for Z-toggle
+	if z_toggle.active==True:
+		update_plot.z=temp_df['z'].values; update_plot.z_normalisation = max(update_plot.z)
+		p.title = ("Year=" +str(year.value)+ " -- Spot area ~" + str(indicator_z_select.value))
+	else:
+		update_plot.z=np.ones(np.size(update_plot.x)); update_plot.z_normalisation = 1
+		p.title = ("Year=" +str(year.value))
 
 	update_plot(None,None,None)	
 
@@ -229,6 +240,8 @@ p.title_text_align = 'left' # to ensure the year is displayed even for long name
 p.xaxis.axis_label = update_plot.indicator_df.loc[Indicator_Code_x].IndicatorName.astype(str).values[0]
 p.yaxis.axis_label = update_plot.indicator_df.loc[Indicator_Code_y].IndicatorName.astype(str).values[0]
 
+
+
 # generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
 indicator_options_x = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
 indicator_options_y = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
@@ -238,23 +251,31 @@ indicator_group_options = codes_unique_df['Group'].values.astype(str)
 
 
 # Set up widgets
+#sliders
 year = Slider(title="Year", value=Year_init, start= 1960 , end=2015, step=1)
 area = Slider(title="Spot Area", value=0.5, start= 0.05 , end=2.0, step=0.05)
+#selectors
 indicator_x_select = Select(value=Ind_Name_f(Indicator_Code_x), title='Indicator on x-axis', options=sorted(indicator_options_x))
 indicator_y_select = Select(value=Ind_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y))
 indicator_z_select = Select(value=Ind_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z))
 indicator_group_select = Select(value=default_indicator_group, title='Indicator group', options=sorted(indicator_group_options))
 trace_country_select = Select(value=trace_country, title='Country to be traced', options=sorted(country_options))
+#toggles
+z_toggle=Toggle(label="Area", active=False,  type="primary")
+trace_toggle=Toggle(label="Trace", active=False, type="primary")
 
-widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, trace_country_select]
+widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, trace_country_select, z_toggle, trace_toggle]
 
 #set updates for plot
 for widget in [indicator_x_select,indicator_y_select,indicator_z_select]:
 	widget.on_change('value', update_indicator)
-area.on_change('value', update_plot)
-year.on_change('value', update_year)
 trace_country_select.on_change('value', update_trace)
 indicator_group_select.on_change('value',update_group)
+
+area.on_change('value', update_plot)
+year.on_change('value', update_year)
+trace_toggle.on_change('active', update_trace)
+z_toggle.on_change('active', update_year)
 
 #initialize plot
 update_indicator(None,None,None)
