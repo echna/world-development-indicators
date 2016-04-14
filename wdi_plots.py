@@ -102,6 +102,12 @@ def update_ind_data(attrname, old, new):
 	
 	except KeyError as e:
 		print( "Error: %s" % e )
+	
+	p.x_range.start = .5*update_plot.temp_ind_df['x'].min()
+	p.x_range.end = 1.1*update_plot.temp_ind_df['x'].max()
+	p.y_range.start = .5*update_plot.temp_ind_df['y'].min()
+	p.y_range.end = 1.1*update_plot.temp_ind_df['y'].max()	
+	
 	update_year(None, None, None)
 	update_trace_data(None, None, None)
 	update_plot(None, None, None)
@@ -132,7 +138,8 @@ def update_plot(attrname, old, new):
 	try:
 		#get countries 
 		countries=update_plot.temp_ind_df_2.index.values.astype(str)
-		trace_country_select.options=sorted(countries)			#update countries selector
+		trace_country_select.options= sorted(countries)	#update countries selector
+		# np.insert(sorted(countries),0,'None'))
 		x=update_plot.temp_ind_df_2['x'].values; y=update_plot.temp_ind_df_2['y'].values; z=update_plot.temp_ind_df_2['z'].values
 		z_normalisation = max([update_plot.temp_ind_df['z'].max(), 1])
 
@@ -141,13 +148,13 @@ def update_plot(attrname, old, new):
 		p.xaxis.axis_label = str(indicator_x_select.value)
 		p.yaxis.axis_label = str(indicator_y_select.value)
 		# this does work, but only with a trick. after loading the graph, move it around with the pan tool, then switch pan off andchange the year, voila
-		p.x_range.start = .5*update_plot.temp_ind_df['x'].min()
-		p.x_range.end = 1.1*update_plot.temp_ind_df['x'].max()
-		p.y_range.start = .5*update_plot.temp_ind_df['y'].min()
-		p.y_range.end = 1.1*update_plot.temp_ind_df['y'].max()
 		
-		update_plot.x_trace = update_plot.temp_trace_df.loc[trace_country_select.value]['x'].values
-		update_plot.y_trace = update_plot.temp_trace_df.loc[trace_country_select.value]['y'].values
+		if trace_country_select.value != 'None':
+			update_plot.x_trace = update_plot.temp_trace_df.loc[trace_country_select.value]['x'].values
+			update_plot.y_trace = update_plot.temp_trace_df.loc[trace_country_select.value]['y'].values
+		else:
+			update_plot.x_trace =[]
+			update_plot.y_trace = []
 		
 		source.data = dict(
 	        x=x,
@@ -176,6 +183,10 @@ else:
 	print("Databade (SQLite) for world indicators not found")
 	sys.exit(0)
 
+
+countries_data = pd.read_csv(db_dir+'Country.csv')	
+	
+
 #unigue first 2 letters of IndicatorCodes
 codes_unique = np.array(['AG', 'BG', 'BM', 'BN', 'BX', 'CM', 'DC', 'DT', 'EA', 'EG', 'EN',
        'EP', 'ER', 'FB', 'FD', 'FI', 'FM', 'FP', 'FR', 'FS', 'GB', 'GC',
@@ -192,6 +203,9 @@ default_indicator_group='SP'
 #debugging set
 indicator_all = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode LIKE @x ", conn,  params={default_indicator_group+'%'})
 update_plot.indicator_df, update_plot.indicator_name_df =load_Indicator(indicator_all, default_indicator_group)
+
+
+pd.read_sql_query("SELECT name FROM sqlite_master WHERE type = 'table' ",  conn)
 
 print("data loaded")
 
