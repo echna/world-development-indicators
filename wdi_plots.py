@@ -120,16 +120,16 @@ def update_year(attrname, old, new):
 
 def update_trace(attrname, old, new):
 	"""update trace for plot and calls update data"""
-	temp_df_2 = pd.concat([
+	temp_df = pd.concat([
 	update_data.indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
 	update_data.indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"})], axis = 1).dropna()
 
-	temp_df_2.reset_index(inplace = True)
-	temp_df_2.drop(['IndicatorName'], axis = 1, inplace = True)
-	temp_df_2.set_index('CountryName',inplace = True)
+	temp_df.reset_index(inplace = True)
+	temp_df.drop(['IndicatorName'], axis = 1, inplace = True)
+	temp_df.set_index('CountryName',inplace = True)
 
-	update_data.x_trace = temp_df_2.loc[trace_country_select.value]['x'].values
-	update_data.y_trace = temp_df_2.loc[trace_country_select.value]['y'].values
+	update_data.x_trace = temp_df.loc[trace_country_select.value]['x'].values
+	update_data.y_trace = temp_df.loc[trace_country_select.value]['y'].values
 
 	update_data(None,None,None)
 
