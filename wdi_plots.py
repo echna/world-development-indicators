@@ -133,6 +133,7 @@ def update_indicator(attrname, old, new):
 	update_plot.countries=tuple(update_plot.temp_ind_df.index.drop_duplicates().astype(str).values)
 	trace_country_select.options=sorted(update_plot.countries)			#update countries selector
 
+<<<<<<< HEAD
 	update_plot.x=temp_df['x'].values; update_plot.y=temp_df['y'].values
 	#check for Z-toggle
 	if z_toggle.active==True:
@@ -147,6 +148,16 @@ def update_indicator(attrname, old, new):
 	p.x_range.end   = 1.1*update_plot.temp_ind_df['x'].max()
 	p.y_range.start = .5*update_plot.temp_ind_df['y'].min()
 	p.y_range.end   = 1.1*update_plot.temp_ind_df['y'].max()
+=======
+	update_plot.x=temp_df['x'].values; update_plot.y=temp_df['y'].values; update_plot.z=temp_df['z'].values
+	update_plot.z_normalisation = np.max([1,temp_df['x'].max()])
+	
+	# set max range
+	p.x_range.start = .5*temp_ind_df['x'].min()
+	p.x_range.end = 1.1*temp_ind_df['x'].max()
+	p.y_range.start = .5*temp_ind_df['y'].min()
+	p.y_range.end = 1.1*temp_ind_df['y'].max()
+>>>>>>> f1ca060b97f0bb66c34d5446b3a6abe3c6488426
 
 	update_trace(None,None,None)
 
@@ -239,9 +250,16 @@ trace_country  = 'Swaziland'
 #create figure
 update_plot.colors=[]; update_plot.alphas=[]
 hover = HoverTool( tooltips=[("Country", "@countries"), ('Area', "@z"), ("(x,y)", "(@x, @y)")] )
+<<<<<<< HEAD
 source = ColumnDataSource(data=dict(x=[], y=[],  z=[], x_trace=[], y_trace=[], countries=[], alphas=0.5, colors='steelblue'))
 
 p = Figure(tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
+=======
+source = ColumnDataSource(data=dict(x=[], y=[], x_trace=[], y_trace=[],countries=[],z=[]))
+p = Figure(webgl=True,tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
+p.scatter('x','y', radius='z', source=source, alpha=.5)
+p.line('x_trace','y_trace', source = source, line_width=3,line_alpha=0.6,line_color = 'red')
+>>>>>>> f1ca060b97f0bb66c34d5446b3a6abe3c6488426
 
 
 
@@ -292,20 +310,37 @@ income_grps = tuple(country_grp_data['IncomeGroup'].astype(str).unique())
 # Set up widgets
 #sliders
 year = Slider(title="Year", value=Year_init, start= 1960 , end=2015, step=1)
+<<<<<<< HEAD
 area = Slider(title="Spot Area", value=0.5, start= 0.05 , end=2.0, step=0.05)
 #selectors
 country_region_select = Select(value = '', title = 'Geographic Region',options = sorted(regions))
 country_income_select = Select(value = '', title = 'Income group',options = sorted(income_grps))
+=======
+area = Slider(title="Spot Area", value=1, start= 0.1 , end=5.0, step=0.05)
+>>>>>>> f1ca060b97f0bb66c34d5446b3a6abe3c6488426
 indicator_x_select = Select(value=Ind_Name_f(Indicator_Code_x), title='Indicator on x-axis', options=sorted(indicator_options_x))
 indicator_y_select = Select(value=Ind_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y))
 indicator_z_select = Select(value=Ind_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z))
 indicator_group_select = Select(value=default_indicator_group, title='Indicator group', options=sorted(indicator_group_options))
 trace_country_select = Select(value=trace_country, title='Country to be traced', options=sorted(country_options))
+<<<<<<< HEAD
 #toggles
 z_toggle=Toggle(label="Area", active=False,  type="primary")
 trace_toggle=Toggle(label="Trace", active=False, type="primary")
 
 widget_list = [country_region_select,country_income_select,year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, trace_country_select, z_toggle, trace_toggle]
+=======
+country_region_select = Select(value = '', title = 'Geographic Region',options = sorted(regions))
+country_income_select = Select(value = '', title = 'Income group',options = sorted(income_grps))
+
+
+
+
+
+
+widget_list2 = [year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, 
+	trace_country_select,country_region_select,country_income_select]
+>>>>>>> f1ca060b97f0bb66c34d5446b3a6abe3c6488426
 
 #set updates for plot
 for widget in [indicator_x_select,indicator_y_select,indicator_z_select]:
