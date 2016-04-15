@@ -79,7 +79,7 @@ def update_group(attrname, old, new):
 	"""update dataframe for selected inidcator group"""	
 	update_plot.indicator_df, update_plot.indicator_name_df=load_Indicator(indicator_all,indicator_group_select.value)
 	
-	print indicator_group_select.value +" loaded"
+	print(indicator_group_select.value +" loaded")
 
 	indicator_options_x = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
 	indicator_x_select.options=sorted(indicator_options_x)
@@ -130,13 +130,13 @@ def update_indicator(attrname, old, new):
 	trace_country_select.options=sorted(update_plot.countries)			#update countries selector
 
 	update_plot.x=temp_df['x'].values; update_plot.y=temp_df['y'].values; update_plot.z=temp_df['z'].values
-	update_plot.z_normalisation = max(update_plot.z)
-
-	#set max range
+	update_plot.z_normalisation = np.max([1,temp_df['x'].max()])
+	
+	# set max range
 	p.x_range.start = .5*temp_ind_df['x'].min()
- 	p.x_range.end   = 1.1*temp_ind_df['x'].max()
- 	p.y_range.start = .5*temp_ind_df['y'].min()
- 	p.y_range.end   = 1.1*temp_ind_df['y'].max()
+	p.x_range.end = 1.1*temp_ind_df['x'].max()
+	p.y_range.start = .5*temp_ind_df['y'].min()
+	p.y_range.end = 1.1*temp_ind_df['y'].max()
 
 	update_trace(None,None,None)
 
@@ -215,7 +215,7 @@ trace_country  = 'Swaziland'
 #create figure
 hover = HoverTool( tooltips=[("Country", "@countries"), ('Area', "@z"), ("(x,y)", "(@x, @y)")] )
 source = ColumnDataSource(data=dict(x=[], y=[], x_trace=[], y_trace=[],countries=[],z=[]))
-p = Figure(tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
+p = Figure(webgl=True,tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
 p.scatter('x','y', radius='z', source=source, alpha=.5)
 p.line('x_trace','y_trace', source = source, line_width=3,line_alpha=0.6,line_color = 'red')
 
@@ -237,16 +237,42 @@ country_options = tuple(update_plot.indicator_df.drop_duplicates('CountryName').
 indicator_group_options = codes_unique_df['Group'].values.astype(str)
 
 
+
+# # # # # # # remove empty entry
+# # # # # # # figure out how to add 'All'
+# # # # # # # make other entries 'other'?
+
+country_grp_data = pd.read_sql_query("SELECT * FROM Country ",  conn)[[u'TableName', u'Region', u'IncomeGroup']].set_index('TableName')
+
+
+('South Asia', 'Europe & Central Asia', 'Middle East & North Africa', 'East Asia & Pacific',
+	'Sub-Saharan Africa', 'Latin America & Caribbean', 'North America')
+	
+('Low income', 'Upper middle income', 'High income: nonOECD', 'Lower middle income', 'High income: OECD')
+
+regions = tuple(country_grp_data['Region'].astype(str).unique())
+income_grps = tuple(country_grp_data['IncomeGroup'].astype(str).unique())
+
+# # # # # # maybe of use later:
+# # # # # [u'CountryCode', u'ShortName', u'TableName', u'CurrencyUnit', u'Region', u'IncomeGroup']
+
+
 # Set up widgets
 year = Slider(title="Year", value=Year_init, start= 1960 , end=2015, step=1)
-area = Slider(title="Spot Area", value=0.5, start= 0.05 , end=2.0, step=0.05)
+area = Slider(title="Spot Area", value=1, start= 0.1 , end=5.0, step=0.05)
 indicator_x_select = Select(value=Ind_Name_f(Indicator_Code_x), title='Indicator on x-axis', options=sorted(indicator_options_x))
 indicator_y_select = Select(value=Ind_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y))
 indicator_z_select = Select(value=Ind_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z))
 indicator_group_select = Select(value=default_indicator_group, title='Indicator group', options=sorted(indicator_group_options))
 trace_country_select = Select(value=trace_country, title='Country to be traced', options=sorted(country_options))
+country_region_select = Select(value = '', title = 'Geographic Region',options = sorted(regions))
+country_income_select = Select(value = '', title = 'Income group',options = sorted(income_grps))
 
-widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, trace_country_select]
+
+
+
+widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, 
+	trace_country_select,country_region_select,country_income_select]
 
 #set updates for plot
 for widget in [indicator_x_select,indicator_y_select,indicator_z_select]:
