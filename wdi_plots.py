@@ -98,7 +98,7 @@ def update_trace(attrname, old, new):
 		update_plot.x_trace = []
 		update_plot.y_trace = []
 		update_plot.colors=[]; update_plot.alphas=[]
-		for i in xrange(np.size(trace_country_select.options)):
+		for i in range(np.size(trace_country_select.options)):
    			update_plot.colors.append('steelblue')
    			update_plot.alphas.append(0.5)
 
@@ -144,9 +144,9 @@ def update_indicator(attrname, old, new):
 
 	#set max range
 	p.x_range.start = .5*update_plot.temp_ind_df['x'].min()
- 	p.x_range.end   = 1.1*update_plot.temp_ind_df['x'].max()
- 	p.y_range.start = .5*update_plot.temp_ind_df['y'].min()
- 	p.y_range.end   = 1.1*update_plot.temp_ind_df['y'].max()
+	p.x_range.end   = 1.1*update_plot.temp_ind_df['x'].max()
+	p.y_range.start = .5*update_plot.temp_ind_df['y'].min()
+	p.y_range.end   = 1.1*update_plot.temp_ind_df['y'].max()
 
 	update_trace(None,None,None)
 
