@@ -271,7 +271,9 @@ country_income_select = Select(value = '', title = 'Income group',options = sort
 
 
 
-widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, 
+
+
+widget_list2 = [year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, 
 	trace_country_select,country_region_select,country_income_select]
 
 #set updates for plot
