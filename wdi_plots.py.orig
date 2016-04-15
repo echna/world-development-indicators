@@ -91,6 +91,7 @@ def update_group(attrname, old, new):
 def update_trace(attrname, old, new):
 	"""update trace for plot and calls update plot"""
 
+
 	if trace_toggle.active==True:
 		update_plot.x_trace = update_plot.temp_ind_df.loc[trace_country_select.value]['x'].values
 		update_plot.y_trace = update_plot.temp_ind_df.loc[trace_country_select.value]['y'].values
@@ -305,7 +306,16 @@ trace_country_select = Select(value=trace_country, title='Country to be traced',
 z_toggle=Toggle(label="Area", active=False,  type="primary")
 trace_toggle=Toggle(label="Trace", active=False, type="primary")
 
+<<<<<<< e172aba4cbb5a34254d0ca310787b146fc3860cf
 widget_list = [country_region_select,country_income_select,year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, trace_country_select, z_toggle, trace_toggle]
+=======
+
+
+
+
+widget_list2 = [year,indicator_x_select,indicator_y_select,indicator_z_select,area,indicator_group_select, 
+	trace_country_select,country_region_select,country_income_select]
+>>>>>>> commit to pull
 
 #set updates for plot
 for widget in [indicator_x_select,indicator_y_select,indicator_z_select]:
