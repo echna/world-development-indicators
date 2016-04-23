@@ -135,6 +135,7 @@ def update_group_check():
 
 def update_trace(attrname, old, new):
 	"""update trace for plot and calls update plot"""
+
 	if trace_toggle.active==True:
 		update_plot.x_trace = update_plot.temp_ind_df.loc[trace_country_select.value]['x'].values
 		update_plot.y_trace = update_plot.temp_ind_df.loc[trace_country_select.value]['y'].values
@@ -229,6 +230,7 @@ def update_plot(attrname, old, new):
         colors=update_plot.colors,
         alphas=update_plot.alphas
     )
+
 	
 # ******  Main  ******
 
