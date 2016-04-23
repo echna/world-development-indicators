@@ -77,14 +77,32 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 	#plots for a bunch of countries for just one indicator
 	return plt.show()
 
-def display_error(message,style):
-	"""print error (or loading) message to screen"""
+def display_error(message, visible, size='16pt', color='dimgrey'):
+	"""print error (or loading) message tool screen. Use Visible=True/False to display or remove message"""
+	#get text positon
+	try:
+		x=p.x_range.end/4; y=p.x_range.end/2 
+	except:
+		x=[30]; y=[100]		#set defaults
+	#update text glyph
+	error_source.data = dict(
+        x=[x],
+        y=[y],
+        text=[message],
+        size=[size],
+        color=[color]
+    )
+	#change visibility of error message
+	error_message.glyph.visible=visible
 
-# Set up callbacks
+# ******  CALLBACKS  ******
 def update_group(attrname, old, new):
 	"""update dataframe for selected inidcator group"""	
-	update_plot.indicator_df, update_plot.indicator_name_df=load_Indicator(indicator_all,indicator_group_select.value)
+
+	display_error('loading new indicator group', True)		#display loading message
 	
+	update_plot.indicator_df, update_plot.indicator_name_df=load_Indicator(indicator_all,indicator_group_select.value)
+
 	print("Indicator group {} loaded".format(indicator_group_select.value))
 
 	indicator_options_x = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
@@ -92,6 +110,8 @@ def update_group(attrname, old, new):
 	indicator_y_select.options=sorted(indicator_options_x)
 	indicator_z_select.options=sorted(indicator_options_x)
 
+	display_error('loading new indicator group', False)		#remove loading message
+ 
 	#set update_group counter and call update_indicator
 	update_group.counter=3
 	update_indicator(None,None,None)
@@ -140,8 +160,11 @@ def update_indicator(attrname, old, new):
 	 	update_plot.indicator_df.loc[Ind_Code_f(indicator_z_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "z"})
 	 	],axis = 1).dropna().reset_index().set_index('CountryName')
 
+		display_error('', False)		#remove error message if no error occured
+
 	except KeyError as e:
-		print( "Error: %s" % e )
+		print( "Error: %s" % e )		#print error to shell
+		display_error(e, True)		#display error message
 		update_plot.temp_ind_df=pd.DataFrame(columns=[['x'],['y'],['y']])
 
 	#set labels
@@ -206,7 +229,6 @@ def update_plot(attrname, old, new):
         colors=update_plot.colors,
         alphas=update_plot.alphas
     )
-
 	
 # ******  Main  ******
 
@@ -260,6 +282,10 @@ p.scatter('x','y', radius='z', source=source, alpha='alphas', fill_color='colors
 p.line('x_trace','y_trace', source = source, line_width=4, line_alpha=0.7, line_color = 'darkorange')
 p.title_text_font_size = '16pt'; p.title_text_align = 'left' # to ensure the year is displayed even for long names of the z-indicator
 
+#setup error message
+error_source=ColumnDataSource(data=dict(x=[30], y=[100], text=['Loading'],size=['16pt'], color=['dimgrey']))
+error_message=p.text('x','y', text='text', text_font_size='size', text_color='color', visible=False, source=error_source)
+
 # generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
 indicator_options_x = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
 indicator_options_y = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
@@ -296,13 +322,14 @@ year.on_change('value', update_year)
 trace_toggle.on_change('active', update_trace)
 z_toggle.on_change('active', update_year)
 
+# Set up layouts and add to document
+inputs = VBoxForm(children=widget_list)
+curdoc().add_root(HBox(children=[inputs, p]))
 
 #initialize plot
 update_group.counter=0
 update_indicator(None,None,None)
 
-# Set up layouts and add to document
-inputs = VBoxForm(children=widget_list)
-curdoc().add_root(HBox(children=[inputs, p]))
+
 
 
