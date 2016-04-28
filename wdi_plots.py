@@ -21,7 +21,26 @@ from bokeh.io import curdoc
 
 	
 # ******  FUNCTIONS  ******
-def load_Indicator(indicator_all, group_list):
+def load_Indicator(group_list):
+	"""Load indicator dataframe for a group of indicators from SQL"""
+	#create sql query string with all the indicator group names
+	sql_query="SELECT * FROM Indicators WHERE IndicatorCode LIKE " + "'" +str(group_list[0]) + "%' "
+	for group in group_list[1:]:
+		sql_query+=str("OR IndicatorCode LIKE " + "'" +str(group) + "%' ")
+
+	#load data
+	indicator_df = pd.read_sql_query(sql_query, conn)
+	indicator_name_df=indicator_df[['IndicatorCode', 'IndicatorName']].set_index('IndicatorName').drop_duplicates('IndicatorCode')
+
+	#clean up of indicator_df
+	indicator_df.set_index(['IndicatorCode','Year'], inplace = True, drop = True)
+	indicator_df.drop(['CountryCode'], axis=1, inplace=True)
+	indicator_df.dropna(inplace=True)
+
+	return indicator_df, indicator_name_df
+
+#TO BE REMOVED
+def load_IndicatorOld(indicator_all, group_list):
 	"""Load indicator dataframe for a group of indicators"""
 	indicator_df = pd.DataFrame(); indicator_name_df = pd.DataFrame(); 
 	#read all indicator groups from selection tool
@@ -46,11 +65,13 @@ def Ind_Name_f(Indicator_Code):
 def Ind_Code_f(Indicator_Name):
 	'''returns IndicatorCode from Name'''
 	return update_plot.indicator_name_df.loc[Indicator_Name].values.astype(str)[0]
-	
+
+#TO BE REMOVED
 def axis_values(Indicator_Code, year, countries):
 	"""get values for the Indicators for selected year and countries"""
 	return update_plot.indicator_df.Value[(update_plot.indicator_df.IndicatorCode==Indicator_Code) & (update_plot.indicator_df.Year==year) & (update_plot.indicator_df.CountryName.isin(countries)) ]
 
+#TO BE REMOVED
 def time_and_values(Country_Name,Indicator_Code):
 	'''generates values for Country_Name  and Indicator_Code indexed by the year'''
 	data = pd.read_sql_query("SELECT Year,Value FROM Indicators WHERE CountryName=:x AND IndicatorCode=:y ",
@@ -60,11 +81,12 @@ def time_and_values(Country_Name,Indicator_Code):
 	data.set_index('Year', inplace = True)
 	return data
 
+#TO BE REMOVED
 def Indicator_finder(str):
 	'''given a string lists the first 10 indictors that contain this string'''
 	return pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorName LIKE @x GROUP BY IndicatorName LIMIT 10",
 		conn,  params={'x': '%'+str +'%'})
-
+#TO BE REMOVED
 def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 	plt.figure()
 	plt.title(str(Indicator_Name_f(Indicator_Code)))
@@ -81,9 +103,10 @@ def display_error(message, visible, size='16pt', color='dimgrey'):
 	"""print error (or loading) message tool screen. Use Visible=True/False to display or remove message"""
 	#get text positon
 	try:
-		x=p.x_range.end/4; y=p.x_range.end/2 
+		x=p.x_range.end/4; y=p.x_range.end/1.5
 	except:
 		x=[30]; y=[100]		#set defaults
+		
 	#update text glyph
 	error_source.data = dict(
         x=[x],
@@ -101,7 +124,7 @@ def update_group(attrname, old, new):
 
 	display_error('loading new indicator group', True)		#display loading message
 	
-	update_plot.indicator_df, update_plot.indicator_name_df=load_Indicator(indicator_all,indicator_group_select.value)
+	update_plot.indicator_df, update_plot.indicator_name_df=load_Indicator(indicator_group_select.value)
 
 	print("Indicator group {} loaded".format(indicator_group_select.value))
 
@@ -135,7 +158,6 @@ def update_group_check():
 
 def update_trace(attrname, old, new):
 	"""update trace for plot and calls update plot"""
-
 	if trace_toggle.active==True:
 		update_plot.x_trace = update_plot.temp_ind_df.loc[trace_country_select.value]['x'].values
 		update_plot.y_trace = update_plot.temp_ind_df.loc[trace_country_select.value]['y'].values
@@ -230,7 +252,6 @@ def update_plot(attrname, old, new):
         colors=update_plot.colors,
         alphas=update_plot.alphas
     )
-
 	
 # ******  Main  ******
 
@@ -259,12 +280,7 @@ codes_unique_df=pd.DataFrame(codes_unique, columns=[ 'Group'])
 
 #load all data
 default_indicator_group=['SP']
-indicator_all = pd.read_sql_query("SELECT * FROM Indicators",  conn)
-#debugging set
-#indicator_all = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode LIKE @x ", conn,  params={'x': '%'+ 'SP'+'%'})
-update_plot.indicator_df, update_plot.indicator_name_df =load_Indicator(indicator_all, default_indicator_group)
-
-print("data loaded")
+update_plot.indicator_df, update_plot.indicator_name_df =load_Indicator(default_indicator_group)
 
 #setting start values
 Indicator_Code_x = 'SP.DYN.CBRT.IN'
