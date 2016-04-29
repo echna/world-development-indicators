@@ -171,18 +171,32 @@ def update_trace(attrname, old, new):
 
 	update_year(None,None,None)
 
+
 def update_indicator(attrname, old, new):
 	"""update indicator data for plot and calls update plot"""	
 	#check if group selection has been changed
 	update_group_check()
-
+	
+	#check the income and region group and selects the appropiate countries
+	if country_income_select.value == 'All': 
+		country_income_group = country_grp_data['TableName'].values
+	else:
+		country_income_group = country_grp_data.set_index('IncomeGroup').loc[country_income_select.value]['TableName'].values
+		
+	if country_region_select.value == 'All':
+		country_region_group = country_grp_data['TableName'].values
+	else:
+		country_region_group = country_grp_data.set_index('Region').loc[country_region_select.value]['TableName'].values
+		
+	country_intersect = np.intersect1d(country_income_group,country_region_group)
+	
 	try:
 		update_plot.temp_ind_df = pd.concat([
-	 	update_plot.indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
-	 	update_plot.indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"}),
-	 	update_plot.indicator_df.loc[Ind_Code_f(indicator_z_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "z"})
-	 	],axis = 1).dropna().reset_index().set_index('CountryName')
-
+		update_plot.indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
+		update_plot.indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"}),
+		update_plot.indicator_df.loc[Ind_Code_f(indicator_z_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "z"})
+		],axis = 1).dropna().reset_index().set_index('CountryName').loc[country_intersect]
+			
 		display_error('', False)		#remove error message if no error occured
 
 	except KeyError as e:
@@ -195,7 +209,7 @@ def update_indicator(attrname, old, new):
 	p.yaxis.axis_label = str(indicator_y_select.value)
 
 	#get countries
-	update_plot.countries=tuple(update_plot.temp_ind_df.index.drop_duplicates().astype(str).values)
+	update_plot.countries=tuple(update_plot.temp_ind_df.index.drop_duplicates().values)
 	trace_country_select.options=sorted(update_plot.countries)			#update countries selector
 
 	#set year range for slider
@@ -304,13 +318,18 @@ p.title_text_font_size = '16pt'; p.title_text_align = 'left' # to ensure the yea
 error_source=ColumnDataSource(data=dict(x=[30], y=[100], text=['Loading'],size=['16pt'], color=['dimgrey']))
 error_message=p.text('x','y', text='text', text_font_size='size', text_color='color', visible=False, source=error_source)
 
+#generate array of all countries and their region and income group
+country_grp_data = pd.read_sql_query("SELECT * FROM Country ",  conn)[[u'TableName', u'Region', u'IncomeGroup']]
+
 # generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
 indicator_options_x = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
 indicator_options_y = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
 indicator_options_z = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values) 
 country_options = tuple(update_plot.indicator_df.drop_duplicates('CountryName').CountryName.values.astype(str))
 indicator_group_options = codes_unique_df['Group'].values.astype(str)
-
+regions_options = ('South Asia', 'Europe & Central Asia', 'Middle East & North Africa', 'East Asia & Pacific',		
+ 	'Sub-Saharan Africa', 'Latin America & Caribbean', 'North America', 'All')
+income_grps_options = ('Low income', 'Upper middle income', 'High income: nonOECD', 'Lower middle income', 'High income: OECD', 'All')
 
 # Set up widgets
 #sliders
@@ -322,14 +341,16 @@ indicator_y_select = Select(value=Ind_Name_f(Indicator_Code_y), title='Indicator
 indicator_z_select = Select(value=Ind_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z))
 indicator_group_select = MultiSelect(value=default_indicator_group, title='Indicator group', options=sorted(indicator_group_options))
 trace_country_select = Select(value=trace_country, title='Country to be traced', options=sorted(country_options))
+country_region_select = Select(value = 'All', title = 'Geographic Region',options = sorted(regions_options))		
+country_income_select = Select(value = 'All', title = 'Income group',options = sorted(income_grps_options))
 #toggles
 z_toggle=Toggle(label="Area", active=False,  type="primary")
 trace_toggle=Toggle(label="Trace", active=False, type="primary")
 
-widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area, trace_country_select, z_toggle, trace_toggle, indicator_group_select]
+widget_list = [year,indicator_x_select,indicator_y_select,indicator_z_select,area, trace_country_select, z_toggle, trace_toggle, indicator_group_select,country_region_select,country_income_select]
 
 #set updates for plot
-for widget in [indicator_x_select,indicator_y_select,indicator_z_select]:
+for widget in [indicator_x_select,indicator_y_select,indicator_z_select,country_region_select,country_income_select]:
 	widget.on_change('value', update_indicator)
 trace_country_select.on_change('value', update_trace)
 indicator_group_select.on_change('value', update_group)
@@ -347,6 +368,10 @@ curdoc().add_root(HBox(children=[inputs, p]))
 #initialize plot
 update_group.counter=0
 update_indicator(None,None,None)
+
+
+
+
 
 
 
