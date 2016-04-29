@@ -16,12 +16,31 @@ import matplotlib.pyplot as plt
 
 from bokeh.plotting import Figure, show, output_file, ColumnDataSource
 from bokeh.models import HoverTool, ColumnDataSource, HBox, VBoxForm, Select, MultiSelect
-from bokeh.models.widgets import Slider, Toggle, Button
+from bokeh.models.widgets import Slider, Toggle, TextInput, Button
 from bokeh.io import curdoc
 
 	
 # ******  FUNCTIONS  ******
-def load_Indicator(indicator_all, group_list):
+def load_Indicator(group_list):
+	"""Load indicator dataframe for a group of indicators from SQL"""
+	#create sql query string with all the indicator group names
+	sql_query="SELECT * FROM Indicators WHERE IndicatorCode LIKE " + "'" +str(group_list[0]) + "%' "
+	for group in group_list[1:]:
+		sql_query+=str("OR IndicatorCode LIKE " + "'" +str(group) + "%' ")
+
+	#load data
+	indicator_df = pd.read_sql_query(sql_query, conn)
+	indicator_name_df=indicator_df[['IndicatorCode', 'IndicatorName']].set_index('IndicatorName').drop_duplicates('IndicatorCode')
+
+	#clean up of indicator_df
+	indicator_df.set_index(['IndicatorCode','Year'], inplace = True, drop = True)
+	indicator_df.drop(['CountryCode'], axis=1, inplace=True)
+	indicator_df.dropna(inplace=True)
+
+	return indicator_df, indicator_name_df
+
+#TO BE REMOVED
+def load_IndicatorOld(indicator_all, group_list):
 	"""Load indicator dataframe for a group of indicators"""
 	indicator_df = pd.DataFrame(); indicator_name_df = pd.DataFrame(); 
 	#read all indicator groups from selection tool
@@ -46,11 +65,13 @@ def Ind_Name_f(Indicator_Code):
 def Ind_Code_f(Indicator_Name):
 	'''returns IndicatorCode from Name'''
 	return update_plot.indicator_name_df.loc[Indicator_Name].values.astype(str)[0]
-	
+
+#TO BE REMOVED
 def axis_values(Indicator_Code, year, countries):
 	"""get values for the Indicators for selected year and countries"""
 	return update_plot.indicator_df.Value[(update_plot.indicator_df.IndicatorCode==Indicator_Code) & (update_plot.indicator_df.Year==year) & (update_plot.indicator_df.CountryName.isin(countries)) ]
 
+#TO BE REMOVED
 def time_and_values(Country_Name,Indicator_Code):
 	'''generates values for Country_Name  and Indicator_Code indexed by the year'''
 	data = pd.read_sql_query("SELECT Year,Value FROM Indicators WHERE CountryName=:x AND IndicatorCode=:y ",
@@ -60,11 +81,12 @@ def time_and_values(Country_Name,Indicator_Code):
 	data.set_index('Year', inplace = True)
 	return data
 
+#TO BE REMOVED
 def Indicator_finder(str):
 	'''given a string lists the first 10 indictors that contain this string'''
 	return pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorName LIKE @x GROUP BY IndicatorName LIMIT 10",
 		conn,  params={'x': '%'+str +'%'})
-
+#TO BE REMOVED
 def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 	plt.figure()
 	plt.title(str(Indicator_Name_f(Indicator_Code)))
@@ -77,14 +99,33 @@ def timeseries_plot(countries_tuple= None, Indicator_Code ='SP.DYN.IMRT.IN'):
 	#plots for a bunch of countries for just one indicator
 	return plt.show()
 
-def display_error(message,style):
-	"""print error (or loading) message to screen"""
+def display_error(message, visible, size='16pt', color='dimgrey'):
+	"""print error (or loading) message tool screen. Use Visible=True/False to display or remove message"""
+	#get text positon
+	try:
+		x=p.x_range.end/4; y=p.x_range.end/1.5
+	except:
+		x=[30]; y=[100]		#set defaults
+		
+	#update text glyph
+	error_source.data = dict(
+        x=[x],
+        y=[y],
+        text=[message],
+        size=[size],
+        color=[color]
+    )
+	#change visibility of error message
+	error_message.glyph.visible=visible
 
-# Set up callbacks
+# ******  CALLBACKS  ******
 def update_group(attrname, old, new):
 	"""update dataframe for selected inidcator group"""	
-	update_plot.indicator_df, update_plot.indicator_name_df=load_Indicator(indicator_all,indicator_group_select.value)
+
+	display_error('loading new indicator group', True)		#display loading message
 	
+	update_plot.indicator_df, update_plot.indicator_name_df=load_Indicator(indicator_group_select.value)
+
 	print("Indicator group {} loaded".format(indicator_group_select.value))
 
 	indicator_options_x = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
@@ -92,6 +133,8 @@ def update_group(attrname, old, new):
 	indicator_y_select.options=sorted(indicator_options_x)
 	indicator_z_select.options=sorted(indicator_options_x)
 
+	display_error('loading new indicator group', False)		#remove loading message
+ 
 	#set update_group counter and call update_indicator
 	update_group.counter=3
 	update_indicator(None,None,None)
@@ -134,7 +177,7 @@ def update_indicator(attrname, old, new):
 	#check if group selection has been changed
 	update_group_check()
 
-	try:
+	
 		update_plot.temp_ind_df = pd.concat([
 	 	update_plot.indicator_df.loc[Ind_Code_f(indicator_x_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "x"}),
 	 	update_plot.indicator_df.loc[Ind_Code_f(indicator_y_select.value),].set_index('CountryName', append = True).rename(columns={"Value": "y"}),
@@ -143,30 +186,35 @@ def update_indicator(attrname, old, new):
 
 	except KeyError as e:
 		print( "Error: %s" % e )
-		update_plot.temp_ind_df=pd.DataFrame(columns=[['x'],['y'],['y']])
 
 	#set labels
 	p.xaxis.axis_label = str(indicator_x_select.value)
 	p.yaxis.axis_label = str(indicator_y_select.value)
 
-	#get countries
 	update_plot.countries=tuple(update_plot.temp_ind_df.index.drop_duplicates().astype(str).values)
 	trace_country_select.options=sorted(update_plot.countries)			#update countries selector
 
-	#set year range for slider
-	year.start=update_plot.temp_ind_df.Year.min()
-	year.end=update_plot.temp_ind_df.Year.max()
+	update_plot.x=temp_df['x'].values; update_plot.y=temp_df['y'].values
+	#check for Z-toggle
+	if z_toggle.active==True:
+		update_plot.z=temp_df['z'].values; update_plot.z_normalisation = max(update_plot.z)
+		p.title = ("Year=" +str(year.value)+ " -- Spot area ~" + str(indicator_z_select.value))
+	else:
+		update_plot.z=np.ones(np.size(update_plot.x)); update_plot.z_normalisation = 1
+		p.title = ("Year=" +str(year.value))
 
 	#set max range
 	p.x_range.start = .5*update_plot.temp_ind_df['x'].min()
-	p.x_range.end   = 1.1*update_plot.temp_ind_df['x'].max()
-	p.y_range.start = .5*update_plot.temp_ind_df['y'].min()
-	p.y_range.end   = 1.1*update_plot.temp_ind_df['y'].max()
+ 	p.x_range.end   = 1.1*update_plot.temp_ind_df['x'].max()
+ 	p.y_range.start = .5*update_plot.temp_ind_df['y'].min()
+ 	p.y_range.end   = 1.1*update_plot.temp_ind_df['y'].max()
 
 	update_trace(None,None,None)
 
+
 def update_year(attrname, old, new):
 	"""update year of plot"""	
+	#reshape df
 	update_plot.x=update_plot.temp_ind_df[update_plot.temp_ind_df.Year==year.value]['x'].values
 	update_plot.y=update_plot.temp_ind_df[update_plot.temp_ind_df.Year==year.value]['y'].values
 
@@ -184,7 +232,7 @@ def update_year(attrname, old, new):
 		index=temp_countries[temp_countries==trace_country_select.value].index.values[0]
 
 		update_plot.colors=[]; update_plot.alphas=[]
-		for i in range(np.size(temp_countries)):
+		for i in xrange(np.size(temp_countries)):
    			update_plot.colors.append('steelblue')
    			update_plot.alphas.append(0.5)
 
@@ -235,19 +283,14 @@ codes_unique_df=pd.DataFrame(codes_unique, columns=[ 'Group'])
 
 #load all data
 default_indicator_group=['SP']
-indicator_all = pd.read_sql_query("SELECT * FROM Indicators",  conn)
-#debugging set
-#indicator_all = pd.read_sql_query("SELECT * FROM Indicators WHERE IndicatorCode LIKE @x ", conn,  params={'x': '%'+ 'SP'+'%'})
-update_plot.indicator_df, update_plot.indicator_name_df =load_Indicator(indicator_all, default_indicator_group)
-
-print("data loaded")
+update_plot.indicator_df, update_plot.indicator_name_df =load_Indicator(default_indicator_group)
 
 #setting start values
 Indicator_Code_x = 'SP.DYN.CBRT.IN'
 Indicator_Code_y = 'SP.DYN.IMRT.IN'	 
 Indicator_Code_z = 'SP.URB.TOTL.IN.ZS' 
-Year_init		 =  2010
-trace_country    = 'Swaziland'
+Year_init=2010
+trace_country  = 'Swaziland'
 
 #create figure
 update_plot.colors=[]; update_plot.alphas=[]
@@ -258,7 +301,10 @@ p = Figure(tools=[hover, "pan,box_zoom,reset,resize,save,wheel_zoom"])
 
 p.scatter('x','y', radius='z', source=source, alpha='alphas', fill_color='colors')
 p.line('x_trace','y_trace', source = source, line_width=4, line_alpha=0.7, line_color = 'darkorange')
-p.title_text_font_size = '16pt'; p.title_text_align = 'left' # to ensure the year is displayed even for long names of the z-indicator
+
+#setup error message
+error_source=ColumnDataSource(data=dict(x=[30], y=[100], text=['Loading'],size=['16pt'], color=['dimgrey']))
+error_message=p.text('x','y', text='text', text_font_size='size', text_color='color', visible=False, source=error_source)
 
 # generate selection options for the axis. VERY slow if the set of indicators is too large. For example 'SH' only takes forever.
 indicator_options_x = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values)  
@@ -266,24 +312,6 @@ indicator_options_y = tuple(update_plot.indicator_df.drop_duplicates('IndicatorN
 indicator_options_z = tuple(update_plot.indicator_df.drop_duplicates('IndicatorName').IndicatorName.astype(str).values) 
 country_options = tuple(update_plot.indicator_df.drop_duplicates('CountryName').CountryName.values.astype(str))
 indicator_group_options = codes_unique_df['Group'].values.astype(str)
-
-# # # # # # # remove empty entry
-# # # # # # # figure out how to add 'All'
-# # # # # # # make other entries 'other'?
-
-country_grp_data = pd.read_sql_query("SELECT * FROM Country ",  conn)[[u'TableName', u'Region', u'IncomeGroup']].set_index('TableName')
-
-
-('South Asia', 'Europe & Central Asia', 'Middle East & North Africa', 'East Asia & Pacific',
-	'Sub-Saharan Africa', 'Latin America & Caribbean', 'North America')
-	
-('Low income', 'Upper middle income', 'High income: nonOECD', 'Lower middle income', 'High income: OECD')
-
-regions_options = tuple(country_grp_data['Region'].astype(str).unique()) + ('All',)
-income_grps_options = tuple(country_grp_data['IncomeGroup'].astype(str).unique()) + ('All',)
-
-# # maybe of use later:
-# [u'CountryCode', u'ShortName', u'TableName', u'CurrencyUnit', u'Region', u'IncomeGroup']
 
 
 # Set up widgets
@@ -294,10 +322,8 @@ area = Slider(title="Spot Area", value=0.5, start= 0.05 , end=2.0, step=0.05)
 indicator_x_select = Select(value=Ind_Name_f(Indicator_Code_x), title='Indicator on x-axis', options=sorted(indicator_options_x))
 indicator_y_select = Select(value=Ind_Name_f(Indicator_Code_y), title='Indicator on y-axis', options=sorted(indicator_options_y))
 indicator_z_select = Select(value=Ind_Name_f(Indicator_Code_z), title='Indicator as spot area', options=sorted(indicator_options_z))
-indicator_group_select = MultiSelect(value=default_indicator_group, title='Indicator group', options=sorted(indicator_group_options))
+indicator_group_select = Select(value=default_indicator_group, title='Indicator group', options=sorted(indicator_group_options))
 trace_country_select = Select(value=trace_country, title='Country to be traced', options=sorted(country_options))
-country_region_select = Select(value = '', title = 'Geographic Region',options = sorted(regions_options))
-country_income_select = Select(value = '', title = 'Income group',options = sorted(income_grps_options))
 #toggles
 z_toggle=Toggle(label="Area", active=False,  type="primary")
 trace_toggle=Toggle(label="Trace", active=False, type="primary")
@@ -312,12 +338,10 @@ indicator_group_select.on_change('value',update_group)
 
 area.on_change('value', update_plot)
 year.on_change('value', update_year)
-
 trace_toggle.on_change('active', update_trace)
 z_toggle.on_change('active', update_year)
 
 #initialize plot
-update_group.counter=0
 update_indicator(None,None,None)
 
 # Set up layouts and add to document
